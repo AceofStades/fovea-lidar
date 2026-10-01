@@ -108,8 +108,9 @@ def code_tarball():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--account", required=True)
-    ap.add_argument("--name", required=True, help="kernel slug, e.g. spunet-5cm")
+    ap.add_argument("--account")
+    ap.add_argument("--name", help="kernel slug, e.g. spunet-5cm")
+    ap.add_argument("--status-all", action="store_true", help="status of every run pushed from this checkout")
     ap.add_argument("--resume-from", default=None, help="<user>/<kernel> whose output holds last.pt")
     ap.add_argument("--gpu", default="NvidiaTeslaT4")
     ap.add_argument("--status", action="store_true")
@@ -117,6 +118,14 @@ def main():
     ap.add_argument("--fetch", default=None, help="download the kernel output into this folder")
     ap.add_argument("train_args", nargs="*")
     args = ap.parse_args()
+    registry = ROOT / "kaggle_build" / "runs.json"
+    runs = json.loads(registry.read_text()) if registry.exists() else {}
+    if args.status_all:
+        for name, acc in runs.items():
+            print(f"{acc:8s} {kaggle(acc, 'kernels', 'status', f'{username(acc)}/{name}', check=False).stdout.strip()}")
+        return
+    if not (args.account and args.name):
+        ap.error("--account and --name are required")
     user = username(args.account)
     ref = f"{user}/{args.name}"
 
@@ -151,6 +160,9 @@ def main():
     (build / "kernel-metadata.json").write_text(json.dumps(meta, indent=2))
     r = kaggle(args.account, "kernels", "push", "-p", str(build), "--accelerator", args.gpu, check=False)
     print(r.stdout.strip(), r.stderr.strip())
+    if "successfully pushed" in r.stdout:
+        runs[args.name] = args.account
+        registry.write_text(json.dumps(runs, indent=2))
 
 
 if __name__ == "__main__":
