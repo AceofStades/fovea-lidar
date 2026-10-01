@@ -65,3 +65,10 @@ class SpUNet(nn.Module):
             x = x.replace_feature(torch.cat([x.features, skips.pop().features], 1))
             x = dec(x)
         return self.head(x.features)
+
+
+def build_model(width=1.0, in_channels=5, num_classes=19):
+    """SpUNet with every channel count scaled by `width` (kept to multiples of 8 for fp16 kernels)."""
+    c = lambda n: max(8, int(round(n * width / 8)) * 8)
+    return SpUNet(in_channels, num_classes, base=c(32), enc=tuple(c(n) for n in (32, 64, 128, 256)),
+                  dec=tuple(c(n) for n in (256, 128, 96, 96)))
