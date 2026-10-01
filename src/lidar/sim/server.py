@@ -69,6 +69,30 @@ def cell_instances(pipe, frame):
     return geo.float().cpu().numpy(), attrs.to(torch.uint8).cpu().numpy()
 
 
+def inspect_cell(pipe, frame, x, y):
+    """Every layer of the cell containing (x, y) in the latest frame."""
+    g = pipe.grid
+    flat, level = g.cell_index(torch.tensor([[x, y]], device=pipe.device))
+    k = int(level[0])
+    if k >= g.num_levels:
+        return {"type": "inspect", "inside": False}
+    f = int(flat[0])
+    local = f - g.offsets[k]
+    w = g.widths[k]
+    val = lambda t: float(t[f])
+    finite = lambda v: v if np.isfinite(v) else None
+    return {
+        "type": "inspect", "inside": True, "level": k, "cell": g.cell_sizes[k],
+        "ring": [g.cfg.half_extents[k - 1] if k else 0.0, g.cfg.half_extents[k]],
+        "ix": local % w, "iy": local // w, "center": pipe.cell_xy[f].tolist(),
+        "count": int(frame.count[f]), "category": int(frame.category[f]),
+        "traversability": int(frame.traversability[f]),
+        "ground_z": val(frame.ground_z), "ground_observed": bool(frame.ground_observed[f]),
+        "obstacle_top": finite(val(frame.obstacle_top)), "clearance": finite(val(frame.clearance)),
+        "step": val(frame.step), "moving_points": int(frame.moving_count[f]),
+    }
+
+
 class Session:
     def __init__(self, pipe, fps):
         self.pipe = pipe
@@ -77,6 +101,8 @@ class Session:
         self.fps = fps
         self.send_points = True
         self.dirty = True
+        self.last_frame = None
+        self.lock = asyncio.Lock()
 
 
 def build_app(pipe, fps=10.0):
@@ -136,6 +162,10 @@ def build_app(pipe, fps=10.0):
                     s.send_points = bool(msg["on"])
                 elif cmd == "reset_metrics":
                     pipe.reset_metrics()
+                elif cmd == "inspect" and s.last_frame is not None:
+                    reply = inspect_cell(pipe, s.last_frame, float(msg["x"]), float(msg["y"]))
+                    async with s.lock:
+                        await socket.send_text(json.dumps(reply))
 
         async def produce():
             last_sent = time.perf_counter()
@@ -182,7 +212,9 @@ def build_app(pipe, fps=10.0):
                 wait = 1.0 / max(s.fps, 0.1) - (time.perf_counter() - last_sent)
                 if s.playing and wait > 0:
                     await asyncio.sleep(wait)
-                await socket.send_bytes(encode(header, bufs))
+                s.last_frame = out["frame"]
+                async with s.lock:
+                    await socket.send_bytes(encode(header, bufs))
                 last_sent = time.perf_counter()
                 if s.playing:
                     s.index = (s.index + 1) % len(pipe)
