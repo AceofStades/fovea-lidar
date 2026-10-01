@@ -134,11 +134,10 @@ class Pipeline:
         self.motion.push(world_all[dynamic], world_all[::4])
         boxes = self.tracker.update(boxes, self.poses[i])
         moving_np = np.zeros(len(xyz_np), dtype=bool)
-        for b in boxes:
+        box_indices = [b.pop("indices") for b in boxes]
+        for b, idx in zip(boxes, box_indices):
             if b["moving"]:
-                moving_np[b.pop("indices")] = True
-            else:
-                b.pop("indices")
+                moving_np[idx] = True
         mov = torch.zeros(len(all_xyz), dtype=torch.bool, device=self.device)
         mov[:len(moving_np)] = torch.from_numpy(moving_np).to(self.device)
         tm.lap("objects")
@@ -167,7 +166,7 @@ class Pipeline:
             self.latency_hist.append(pipeline_ms)
         return {
             "index": i, "pts": pts, "pred": pred, "gt": gt, "category": category, "conf": conf,
-            "frame": frame, "boxes": boxes, "pose": self.poses[i], "times": tm.times,
+            "frame": frame, "boxes": boxes, "box_indices": box_indices, "pose": self.poses[i], "times": tm.times,
             "pipeline_ms": pipeline_ms, "accumulated_points": int(len(all_xyz)),
         }
 

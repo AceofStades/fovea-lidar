@@ -16,6 +16,8 @@ import torch
 from .grid import GridConfig, VariableResolutionGrid
 from .labels import CATEGORY_NAMES, NUM_CATEGORIES, TRAIN_NAMES, UNKNOWN
 from .metrics import IoU
+from .objeval import ObjectEval
+from .data import read_label
 from .pipeline import Pipeline
 
 
@@ -47,9 +49,14 @@ def main():
     stage_times = {}
     uniform_ms, ours_single_ms = [], []
     cell_agree = IoU(NUM_CATEGORIES)
+    objects = ObjectEval()
 
     for n, i in enumerate(frames):
         out = pipe.step(i)  # consecutive frames, so temporal fusion behaves as in the simulator
+        label_path = pipe.files[i][1]
+        if label_path is not None:
+            gt_train, _, gt_inst = read_label(label_path)
+            objects.update(out["pts"][:, :3].cpu().numpy(), gt_train, gt_inst, out["boxes"], out["box_indices"])
         if n >= args.warmup:
             for k, v in out["times"].items():
                 stage_times.setdefault(k, []).append(v)
@@ -88,6 +95,7 @@ def main():
         "memory": mem,
     }
     res["fps_p50"] = 1000.0 / res["latency_ms"]["total"]["p50"]
+    res["objects"] = objects.summary()
     if pipe.source == "model":
         s = pipe.metrics_summary()
         res["segmentation"] = {
