@@ -2,7 +2,7 @@
 import torch
 
 from .labels import NUM_CLASSES
-from .models.spunet import SpUNet
+from .models.spunet import build_model
 
 
 class Segmenter:
@@ -11,7 +11,7 @@ class Segmenter:
         self.voxel = ck["args"]["voxel"]
         self.max_range = 100.0
         self.device = torch.device(device)
-        model = SpUNet(in_channels=5, num_classes=NUM_CLASSES)
+        model = build_model(ck["args"].get("width", 1.0), in_channels=5, num_classes=NUM_CLASSES)
         state = {k.removeprefix("module."): v for k, v in ck["model"].items()}
         model.load_state_dict(state)
         # spconv on Blackwell: fp16 inference works with a half() model, not with autocast
