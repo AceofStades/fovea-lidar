@@ -67,6 +67,7 @@ class Pipeline:
         self.cat_iou = IoU(NUM_CATEGORIES)
         self.iou_dist = IoUByDistance(NUM_CATEGORIES)
         self.latency_hist = deque(maxlen=300)
+        self.motion_tp = self.motion_fp = self.motion_fn = 0
 
     def has_labels(self, i):
         return self.files[i][1] is not None and Path(self.files[i][1]).exists()
@@ -112,17 +113,23 @@ class Pipeline:
             parts_xyz.append(w @ inv[:3, :3].T + inv[:3, 3])
             parts_cat.append(c)
         all_xyz, all_cat = torch.cat(parts_xyz), torch.cat(parts_cat)
-        mov = None
-        if moving is not None and self.source == "gt":
-            mov = torch.cat([moving, torch.zeros(len(all_xyz) - len(moving), dtype=torch.bool, device=self.device)])
         tm.lap("accumulate")
+
+        # objects + motion state from the tracker (works the same for network and ground-truth labels)
+        xyz_np, cat_np = xyz.cpu().numpy(), category.cpu().numpy()
+        boxes = self.tracker.update(detect(xyz_np, cat_np), self.poses[i])
+        moving_np = np.zeros(len(xyz_np), dtype=bool)
+        for b in boxes:
+            if b["moving"]:
+                moving_np[b.pop("indices")] = True
+            else:
+                b.pop("indices")
+        mov = torch.zeros(len(all_xyz), dtype=torch.bool, device=self.device)
+        mov[:len(moving_np)] = torch.from_numpy(moving_np).to(self.device)
+        tm.lap("objects")
 
         frame = self.grid.project(all_xyz, all_cat, mov)
         tm.lap("grid")
-
-        xyz_np, cat_np = xyz.cpu().numpy(), category.cpu().numpy()
-        boxes = self.tracker.update(detect(xyz_np, cat_np), self.poses[i])
-        tm.lap("objects")
 
         if gt is not None and self.source == "model":
             gt_np = gt.cpu().numpy()
@@ -133,6 +140,11 @@ class Pipeline:
             gt_cat = np.where(gt_np == IGNORE, 255, gt_cat)
             self.cat_iou.update(cat_np.astype(np.int64), gt_cat)
             self.iou_dist.update(cat_np.astype(np.int64), gt_cat, xyz_np)
+        if moving is not None:
+            gm = moving.cpu().numpy()
+            self.motion_tp += int((gm & moving_np).sum())
+            self.motion_fp += int((~gm & moving_np).sum())
+            self.motion_fn += int((gm & ~moving_np).sum())
         tm.lap("metrics")
 
         pipeline_ms = sum(v for k, v in tm.times.items() if k not in ("metrics",))
@@ -145,7 +157,7 @@ class Pipeline:
 
     def metrics_summary(self):
         if self.cat_iou.cm.sum() == 0:
-            return None
+            return {"motion_only": True, **self.motion_summary()} if self.motion_tp + self.motion_fn else None
         cat_iou = self.cat_iou.iou()
         return {
             "miou_19": self.iou.miou(),
@@ -153,4 +165,10 @@ class Pipeline:
             "category_iou": {n: (None if np.isnan(v) else float(v)) for n, v in zip(CATEGORY_NAMES, cat_iou) if n != "unknown"},
             "by_distance": {k: {"miou": v[0], "acc": v[1], "points": v[2]} for k, v in self.iou_dist.summary().items()},
             "points_evaluated": int(self.iou.cm.sum()),
+            **self.motion_summary(),
         }
+
+    def motion_summary(self):
+        tp, fp, fn = self.motion_tp, self.motion_fp, self.motion_fn
+        return {"moving_iou": tp / max(tp + fp + fn, 1), "moving_precision": tp / max(tp + fp, 1),
+                "moving_recall": tp / max(tp + fn, 1)}
