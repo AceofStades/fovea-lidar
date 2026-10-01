@@ -12,7 +12,7 @@ from .grid import GridConfig, VariableResolutionGrid
 from .labels import (CATEGORY_NAMES, IGNORE, NUM_CATEGORIES, NUM_CLASSES, PEDESTRIAN, TRAIN_TO_CATEGORY,
                      UNKNOWN, VEHICLE)
 from .metrics import IoU, IoUByDistance
-from .objects import Tracker, detect
+from .objects import MotionCue, Tracker, detect
 
 
 class Timer:
@@ -45,6 +45,7 @@ class Pipeline:
         self.accumulate = accumulate
         self.history = deque()
         self.tracker = Tracker()
+        self.motion = MotionCue()
         self.prev_index = None
         self._cat_lut = torch.full((256,), UNKNOWN, dtype=torch.long, device=self.device)
         self._cat_lut[:NUM_CLASSES] = torch.as_tensor(TRAIN_TO_CATEGORY, device=self.device).long()
@@ -99,6 +100,7 @@ class Pipeline:
         if self.prev_index is None or i != self.prev_index + 1:
             self.history.clear()
             self.tracker.reset()
+            self.motion.reset()
         self.prev_index = i
         pose = torch.as_tensor(self.poses[i], device=self.device, dtype=torch.float32)
         xyz = pts[:, :3]
@@ -117,7 +119,18 @@ class Pipeline:
 
         # objects + motion state from the tracker (works the same for network and ground-truth labels)
         xyz_np, cat_np = xyz.cpu().numpy(), category.cpu().numpy()
-        boxes = self.tracker.update(detect(xyz_np, cat_np), self.poses[i])
+        boxes = detect(xyz_np, cat_np)
+        world_all = xyz @ pose[:3, :3].T + pose[:3, 3]
+        if boxes:
+            idx = torch.from_numpy(np.concatenate([b["indices"] for b in boxes])).to(self.device)
+            owner = torch.from_numpy(np.repeat(np.arange(len(boxes)), [len(b["indices"]) for b in boxes])).to(self.device)
+            cue = self.motion.evaluate(world_all[idx], owner, len(boxes))
+            if cue is not None:
+                for b, ov, seen in zip(boxes, *cue):
+                    b["overlap"], b["seen"] = float(ov), float(seen)
+        dynamic = (category == VEHICLE) | (category == PEDESTRIAN)
+        self.motion.push(world_all[dynamic], world_all[::4])
+        boxes = self.tracker.update(boxes, self.poses[i])
         moving_np = np.zeros(len(xyz_np), dtype=bool)
         for b in boxes:
             if b["moving"]:
