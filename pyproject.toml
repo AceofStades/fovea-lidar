@@ -1,0 +1,46 @@
+[project]
+name = "lidar"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "AceofStades", email = "rahulpbokade@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.142.2",
+    "kaggle>=2.2.4",
+    "matplotlib>=3.11.2",
+    "numba>=0.68.0",
+    "numpy>=2.5.3",
+    "pyyaml>=6.0.3",
+    "remotezip>=0.12.6",
+    "rerun-sdk>=0.38.1",
+    "scipy>=1.18.1",
+    "spconv-cu126>=2.3.8",
+    "torch>=2.11.0",
+    "torchvision>=0.26.0",
+    "tqdm>=4.70.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+lidar = "lidar:main"
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
