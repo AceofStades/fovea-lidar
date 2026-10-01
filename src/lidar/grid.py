@@ -170,7 +170,8 @@ class VariableResolutionGrid:
         prio = torch.arange(NUM_CATEGORIES, device=self.device)
         claimed = (cat_counts >= self.cfg.min_points_claim) & (prio >= VEGETATION)
         top_claim = (claimed * prio).amax(1)
-        majority = cat_counts[:, 1:].argmax(1) + 1
+        known = cat_counts[:, 1:]
+        majority = torch.where(known.sum(1) > 0, known.argmax(1) + 1, torch.full_like(top_claim, UNKNOWN))
         out = torch.where(top_claim > 0, top_claim, majority)
         return torch.where(count > 0, out, torch.full_like(out, UNKNOWN)).to(torch.uint8)
 
