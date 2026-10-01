@@ -30,7 +30,8 @@ class Timer:
 
 
 class Pipeline:
-    def __init__(self, root, seq, checkpoint=None, grid_cfg=GridConfig(), accumulate=10, device="cuda"):
+    def __init__(self, root, seq, checkpoint=None, grid_cfg=GridConfig(), accumulate=10, device="cuda",
+                 anchor="world"):
         self.device = torch.device(device)
         self.root, self.seq = root, seq
         self.files = scan_files(root, [seq], require_labels=False)
@@ -44,6 +45,7 @@ class Pipeline:
             self.segmenter = Segmenter(checkpoint, device)
         self.source = "model" if self.segmenter else "gt"
         self.accumulate = accumulate
+        self.anchor = anchor
         self.history = deque()
         self.tracker = Tracker()
         self.motion = MotionCue()
@@ -113,10 +115,22 @@ class Pipeline:
         self.history.append((world, category[static]))
         while len(self.history) > max(self.accumulate, 1):
             self.history.popleft()
-        inv = torch.linalg.inv(pose)
-        parts_xyz, parts_cat = [xyz], [category]
+        # map frame: either the sensor frame (grid turns with the vehicle) or world-anchored axes with
+        # the origin snapped to the coarsest cell, so every cell boundary is fixed in the world while
+        # the rings scroll along with the vehicle (no re-binning shimmer when it turns)
+        if self.anchor == "world":
+            snap = self.grid.cell_sizes[-1]
+            origin = pose[:3, 3].clone()
+            origin[:2] = torch.round(origin[:2] / snap) * snap
+            map_from_world = torch.eye(4, device=self.device)
+            map_from_world[:3, 3] = -origin
+        else:
+            map_from_world = torch.linalg.inv(pose)
+        map_from_sensor = map_from_world @ pose
+        parts_xyz = [xyz @ map_from_sensor[:3, :3].T + map_from_sensor[:3, 3]]
+        parts_cat = [category]
         for w, c in list(self.history)[:-1]:
-            parts_xyz.append(w @ inv[:3, :3].T + inv[:3, 3])
+            parts_xyz.append(w @ map_from_world[:3, :3].T + map_from_world[:3, 3])
             parts_cat.append(c)
         all_xyz, all_cat = torch.cat(parts_xyz), torch.cat(parts_cat)
         tm.lap("accumulate")
@@ -171,6 +185,7 @@ class Pipeline:
         return {
             "index": i, "pts": pts, "pred": pred, "gt": gt, "category": category, "conf": conf,
             "frame": frame, "boxes": boxes, "box_indices": box_indices, "pose": self.poses[i], "times": tm.times,
+            "sensor_from_map": torch.linalg.inv(map_from_sensor).cpu().numpy(),
             "pipeline_ms": pipeline_ms, "accumulated_points": int(len(all_xyz)),
         }
 
