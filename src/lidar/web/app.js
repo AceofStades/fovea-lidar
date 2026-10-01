@@ -523,6 +523,16 @@ function updatePanels(h) {
   const met = h.metrics;
   $('acc-section').style.display = met ? '' : 'none';
   $('seg-metrics').style.display = met && !met.motion_only ? '' : 'none';
+  if (met && met.objects) {
+    const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
+    const veh = met.objects.vehicle, ped = met.objects.pedestrian;
+    $('obj-table').innerHTML = '<tr><th>distance</th><th>vehicles</th><th>pedestrians</th></tr>'
+      + Object.keys(veh.by_distance).filter((k) => veh.by_distance[k].objects + ped.by_distance[k].objects > 0).map((k) => {
+        const a = veh.by_distance[k], b = ped.by_distance[k];
+        return `<tr><td>${k}</td><td>${pct(a.recall)} / ${pct(a.precision)}</td><td>${pct(b.recall)} / ${pct(b.precision)}</td></tr>`;
+      }).join('')
+      + `<tr><td><b>all</b></td><td><b>${pct(veh.recall)} / ${pct(veh.precision)}</b></td><td><b>${pct(ped.recall)} / ${pct(ped.precision)}</b></td></tr>`;
+  }
   if (met) {
     $('kpi-mov').textContent = `${(met.moving_iou * 100).toFixed(1)}%`;
     $('kpi-movp').textContent = `${(met.moving_precision * 100).toFixed(0)}%`;
