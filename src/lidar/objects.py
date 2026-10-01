@@ -19,8 +19,16 @@ from scipy import ndimage
 
 from .labels import PEDESTRIAN, VEHICLE
 
-MIN_POINTS = {VEHICLE: 15, PEDESTRIAN: 6}
+MIN_POINTS = {VEHICLE: 12, PEDESTRIAN: 6}
 CELL = {VEHICLE: 0.35, PEDESTRIAN: 0.25}
+# plausible box shapes: (min height, max height, min footprint length, max footprint length) in metres
+SHAPE = {VEHICLE: (0.5, 4.5, 0.8, 20.0), PEDESTRIAN: (0.5, 2.4, 0.0, 1.8)}
+
+
+def plausible(box):
+    lo_h, hi_h, lo_l, hi_l = SHAPE[box["category"]]
+    length = max(box["size"][:2])
+    return lo_h <= box["size"][2] <= hi_h and lo_l <= length <= hi_l
 
 
 def detect(xyz, category):
@@ -45,6 +53,8 @@ def detect(xyz, category):
             if len(idx) < MIN_POINTS[cat]:
                 continue
             box = _box(p[idx], cat)
+            if not plausible(box):
+                continue
             box["indices"] = sel[idx]  # into the input arrays; stripped before sending to clients
             boxes.append(box)
     return boxes
