@@ -68,6 +68,8 @@ def main():
     ap.add_argument("--mix", type=float, default=0.0, help="probability of PolarMix augmentation")
     ap.add_argument("--width", type=float, default=1.0, help="channel width multiplier")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--refresh-files", action="store_true",
+                    help="re-scan the dataset folder every epoch (train while a download is still running)")
     args = ap.parse_args()
 
     ddp = "LOCAL_RANK" in os.environ
@@ -132,6 +134,13 @@ def main():
     log = open(os.path.join(args.out, "log.jsonl"), "a") if main_proc else None
     stop = False
     for epoch in range(start_epoch, args.epochs):
+        if args.refresh_files and not ddp:
+            n_before = len(train_set)
+            train_set.files = scan_files(args.root, args.train_seqs.split(","), require_labels=True, step=args.train_step)
+            if len(train_set) != n_before:
+                train_loader = DataLoader(train_set, args.batch, shuffle=True, num_workers=args.workers,
+                                          collate_fn=collate_voxels, drop_last=True, pin_memory=True, persistent_workers=True)
+                print(f"epoch {epoch}: training set now {len(train_set)} scans", flush=True)
         if sampler:
             sampler.set_epoch(epoch)
         t0 = time.time()
