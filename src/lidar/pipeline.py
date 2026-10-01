@@ -101,6 +101,8 @@ class Pipeline:
             self.history.clear()
             self.tracker.reset()
             self.motion.reset()
+            self.frames_since_reset = 0
+        self.frames_since_reset = getattr(self, "frames_since_reset", 0) + 1
         self.prev_index = i
         pose = torch.as_tensor(self.poses[i], device=self.device, dtype=torch.float32)
         xyz = pts[:, :3]
@@ -161,7 +163,8 @@ class Pipeline:
         tm.lap("metrics")
 
         pipeline_ms = sum(v for k, v in tm.times.items() if k not in ("metrics",))
-        self.latency_hist.append(pipeline_ms)
+        if self.frames_since_reset > 3:  # skip warm-up frames after a seek
+            self.latency_hist.append(pipeline_ms)
         return {
             "index": i, "pts": pts, "pred": pred, "gt": gt, "category": category, "conf": conf,
             "frame": frame, "boxes": boxes, "pose": self.poses[i], "times": tm.times,

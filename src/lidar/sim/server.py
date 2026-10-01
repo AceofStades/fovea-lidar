@@ -203,8 +203,8 @@ def build_app(pipe, fps=10.0):
                     "observed_cells": int(len(geo)),
                     "cells_per_level": np.bincount(attrs[:, 2], minlength=pipe.grid.num_levels).tolist(),
                     "metrics": pipe.metrics_summary(),
-                    "latency_p50": float(np.percentile(pipe.latency_hist, 50)),
-                    "latency_p95": float(np.percentile(pipe.latency_hist, 95)),
+                    "latency_p50": float(np.percentile(pipe.latency_hist, 50)) if pipe.latency_hist else out["pipeline_ms"],
+                    "latency_p95": float(np.percentile(pipe.latency_hist, 95)) if pipe.latency_hist else out["pipeline_ms"],
                     "playing": s.playing,
                     "accumulate": pipe.accumulate,
                 }
