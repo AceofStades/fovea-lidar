@@ -33,7 +33,7 @@ def _sequence_dirs(root):
         if os.path.basename(dirpath) == "sequences":
             found.append(Path(dirpath))
             dirnames[:] = []
-        elif dirpath.count(os.sep) - str(root).count(os.sep) >= 5:
+        elif dirpath.count(os.sep) - str(root).count(os.sep) >= 8:
             dirnames[:] = []
     return sorted(found)
 

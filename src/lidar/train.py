@@ -85,6 +85,8 @@ def main():
     val_loader = DataLoader(val_set, 1, num_workers=min(args.workers, 4), collate_fn=collate_voxels)
     if main_proc:
         print(f"train scans {len(train_set)}  val scans {len(val_set)}", flush=True)
+    if not len(train_set) or not len(val_set):
+        raise SystemExit(f"no labeled scans found under {args.root}")
 
     model = SpUNet(in_channels=5, num_classes=NUM_CLASSES).to(device)
     if ddp:
