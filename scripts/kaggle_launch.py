@@ -29,10 +29,27 @@ TRAIN_ARGS = {train_args}
 WORK = "/kaggle/working"
 tarfile.open(fileobj=io.BytesIO(base64.b64decode(CODE)), mode="r:gz").extractall(WORK + "/code")
 subprocess.run("nvidia-smi --query-gpu=name,memory.total --format=csv; python --version", shell=True)
+# cumm/spconv treat themselves as editable installs (and try to JIT-compile) when site-packages
+# contains a setup.py or .gitignore, which the Kaggle image does; disable that.
+os.environ.update(CUMM_DISABLE_JIT="1", SPCONV_DISABLE_JIT="1")
+import site
+for sp in site.getsitepackages():
+    for f in ("setup.py", ".gitignore"):
+        if os.path.exists(os.path.join(sp, f)):
+            os.rename(os.path.join(sp, f), os.path.join(sp, f + ".moved"))
+            print("moved", os.path.join(sp, f), flush=True)
+SMOKE = ("import torch, spconv.pytorch as sp; c = torch.randint(0, 50, (2000, 3)).int().unique(dim=0); "
+         "c = torch.cat([torch.zeros(len(c), 1, dtype=torch.int32), c], 1).cuda(); "
+         "x = sp.SparseConvTensor(torch.randn(len(c), 8).cuda(), c, [50, 50, 50], 1); "
+         "y = sp.SubMConv3d(8, 16, 3, indice_key='a').cuda()(x); print('spconv ok', y.features.shape)")
 for whl in ("spconv-cu126", "spconv-cu124", "spconv-cu121"):
-    if subprocess.run([sys.executable, "-m", "pip", "install", "-q", whl]).returncode == 0:
-        print("installed", whl, flush=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", whl])
+    if subprocess.run([sys.executable, "-c", SMOKE]).returncode == 0:
+        print("using", whl, flush=True)
         break
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", whl])
+else:
+    sys.exit("no working spconv build")
 out = WORK + "/run"
 os.makedirs(out, exist_ok=True)
 for dirpath, dirnames, files in os.walk("/kaggle/input"):
