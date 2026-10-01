@@ -1,7 +1,9 @@
 """Confusion-matrix based IoU, overall and per distance band."""
 import numpy as np
 
-DISTANCE_BINS = (0, 10, 20, 40, 60, 100)
+# SemanticKITTI labels points out to ~50 m (97% labelled within, ~2% beyond), so accuracy is
+# measured in 10 m bands up to 50 m; the map itself still extends to 100 m.
+DISTANCE_BINS = (0, 10, 20, 30, 40, 50)
 
 
 class IoU:

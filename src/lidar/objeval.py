@@ -6,8 +6,7 @@ point-set IoU is at least 0.5 and the map category (vehicle / pedestrian) agrees
 import numpy as np
 
 from .labels import NUM_CLASSES, PEDESTRIAN, TRAIN_TO_CATEGORY, VEHICLE
-
-BINS = (0, 10, 20, 40, 60, 100)
+from .metrics import DISTANCE_BINS as BINS
 MIN_GT_POINTS = 10
 
 
