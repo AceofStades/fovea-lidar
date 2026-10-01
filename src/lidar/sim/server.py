@@ -18,10 +18,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from ..grid import BLOCKED, OVERHANG, TRAVERSABILITY_NAMES, GridConfig
+from ..grid import OVERHANG, TRAVERSABILITY_COLORS, TRAVERSABILITY_NAMES, GridConfig
 from ..labels import CATEGORY_NAMES, CATEGORY_COLORS, TRAIN_TO_CATEGORY
 from ..pipeline import Pipeline
-from ..grid import TRAVERSABILITY_COLORS
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 GROUND_SLAB = 0.04
@@ -108,6 +107,8 @@ def build_app(pipe, fps=10.0):
     async def ws(socket: WebSocket):
         await socket.accept()
         s = Session(pipe, fps)
+        pipe.reset_metrics()
+        pipe.prev_index = None
         await socket.send_text(json.dumps(static_info))
         loop = asyncio.get_running_loop()
 
