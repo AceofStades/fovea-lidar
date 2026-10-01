@@ -24,29 +24,43 @@ class ObjectEval:
         return int(np.clip(np.digitize(d, self.bins) - 1, 0, len(self.bins) - 2))
 
     def update(self, xyz, gt_train, gt_instance, boxes, box_indices):
+        """Match detections to labelled objects with one joint histogram over (object, box) point
+        pairs, so a frame costs O(points) instead of set intersections per pair."""
         cat = np.where(gt_train < NUM_CLASSES, TRAIN_TO_CATEGORY[np.minimum(gt_train, NUM_CLASSES - 1)], 0)
-        objects = []
-        for c in (VEHICLE, PEDESTRIAN):
-            sel = (cat == c) & (gt_instance > 0)
-            for inst in np.unique(gt_instance[sel]):
-                idx = np.flatnonzero(sel & (gt_instance == inst))
-                if len(idx) >= MIN_GT_POINTS:
-                    objects.append((c, idx, float(np.hypot(*xyz[idx, :2].mean(0)))))
+        dyn = ((cat == VEHICLE) | (cat == PEDESTRIAN)) & (gt_instance > 0)
+        key = gt_instance.astype(np.int64) * 8 + cat
+        uniq, gt_id = np.unique(np.where(dyn, key, -1), return_inverse=True)
+        gt_id = gt_id.reshape(-1)
+        if uniq[0] == -1:
+            uniq = uniq[1:]
+        else:
+            gt_id = gt_id + 1                       # no background present; keep 0 free for it
+        box_id = np.zeros(len(xyz), np.int64)
+        for j, idx in enumerate(box_indices):
+            box_id[idx] = j + 1
+        G, B = len(uniq), len(boxes)
+        joint = np.bincount(gt_id * (B + 1) + box_id, minlength=(G + 1) * (B + 1)).reshape(G + 1, B + 1)
+        size_g, size_b = joint.sum(1), joint.sum(0)
         matched = set()
-        for c, idx, d in objects:
+        for g in range(1, G + 1):
+            if size_g[g] < MIN_GT_POINTS:
+                continue
+            c = int(uniq[g - 1] % 8)
             k = 0 if c == VEHICLE else 1
-            b = self._bin(d)
+            pts = np.flatnonzero(gt_id == g)
+            b = self._bin(float(np.hypot(*xyz[pts, :2].mean(0))))
             self.gt[k, b] += 1
-            gset = set(idx.tolist())
-            for j, (box, pidx) in enumerate(zip(boxes, box_indices)):
-                if j in matched or box["category"] != c:
-                    continue
-                inter = len(gset.intersection(pidx.tolist()))
-                if inter and inter / (len(gset) + len(pidx) - inter) >= self.iou:
-                    self.tp_gt[k, b] += 1
-                    self.tp_pred[k, self._bin(box["distance"])] += 1
-                    matched.add(j)
+            inter = joint[g, 1:]
+            iou = inter / np.maximum(size_g[g] + size_b[1:] - inter, 1)
+            for j in np.argsort(-iou):
+                if iou[j] < self.iou:
                     break
+                if j in matched or boxes[j]["category"] != c:
+                    continue
+                self.tp_gt[k, b] += 1
+                self.tp_pred[k, self._bin(boxes[j]["distance"])] += 1
+                matched.add(j)
+                break
         for box in boxes:
             k = 0 if box["category"] == VEHICLE else 1
             self.pred[k, self._bin(box["distance"])] += 1
