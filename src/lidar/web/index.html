@@ -24,6 +24,7 @@
     </div>
   </div>
   <div class="chips">
+    <button class="chip btn" id="btn-about" title="How it works (H)">How it works</button>
     <div class="chip" id="chip-conn"><i class="dot"></i><span>connecting…</span></div>
     <div class="chip" id="chip-seq">SEQ —</div>
     <div class="chip accent" id="chip-source">—</div>
@@ -57,6 +58,7 @@
     <label class="tog"><input type="checkbox" id="lay-rings" checked><span></span>Resolution rings</label>
     <label class="tog"><input type="checkbox" id="lay-boxes" checked><span></span>Object boxes</label>
     <label class="tog"><input type="checkbox" id="lay-traj" checked><span></span>Ego trajectory</label>
+    <label class="tog"><input type="checkbox" id="lay-mini" checked><span></span>Mini-map</label>
   </section>
   <section>
     <h3>Point colour</h3>
@@ -129,6 +131,38 @@
     <div id="objects"></div>
   </section>
 </aside>
+
+<div id="minimap"><span>top-down · ±60 m</span></div>
+
+<div id="about">
+  <div class="card">
+    <button class="close" title="Close (Esc)">×</button>
+    <h2>How FOVEA works</h2>
+    <p class="lead">A recorded drive (SemanticKITTI, Velodyne HDL-64, 10 Hz) replays through the full perception
+      stack on the GPU. Every number on screen is measured live.</p>
+    <ol class="steps">
+      <li><b>Segment</b><span>A sparse 3D U-Net labels each of ~120k points per scan into 19 classes:
+        road, sidewalk, terrain, vegetation, buildings, poles, cars, pedestrians, cyclists…</span></li>
+      <li><b>Fuse</b><span>Static structure from the last scans is aligned with the ego poses; moving objects
+        are taken only from the current scan, so they never leave ghost trails.</span></li>
+      <li><b>Detect &amp; track</b><span>Vehicle and pedestrian points become oriented boxes; a world-frame tracker
+        plus a scan-to-scan overlap test separates moving traffic from parked cars.</span></li>
+      <li><b>Map</b><span>Points are projected into nested rings — 5 cm cells within 10 m, then 10, 20 and
+        40 cm out to 100 m. Each point lands in exactly one cell; coarse cells are exact unions of fine ones,
+        so there is no alignment error and no data loss.</span></li>
+      <li><b>2.5D layers</b><span>Each cell stores ground height, obstacle top, clearance under overhangs, step
+        height to its neighbours (curbs, pothole rims), class and drivability. Thin obstacles always win a cell:
+        a pole is never averaged away inside a coarse road cell.</span></li>
+    </ol>
+    <div class="facts">
+      <div><b>22×</b><span>less memory than a uniform 5 cm 2.5D grid</span></div>
+      <div><b>319×</b><span>less than dense 5 cm 3D voxels</span></div>
+      <div><b>6.6×</b><span>faster projection than a uniform 5 cm grid</span></div>
+    </div>
+    <p class="keys"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> step · <kbd>1</kbd>–<kbd>4</kbd> map colour ·
+      hover a cell to inspect it · <kbd>H</kbd> this panel</p>
+  </div>
+</div>
 
 <footer class="timeline">
   <button id="btn-prev" title="Previous frame">⏮</button>

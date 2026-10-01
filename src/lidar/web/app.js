@@ -599,6 +599,9 @@ $('lay-cells').onchange = (e) => { cells.visible = e.target.checked; };
 $('lay-points').onchange = (e) => { points.visible = e.target.checked; send({ cmd: 'points', on: e.target.checked }); };
 $('lay-rings').onchange = (e) => { rings.visible = e.target.checked; };
 $('lay-traj').onchange = (e) => { traj.visible = e.target.checked; };
+$('lay-mini').onchange = (e) => { $('minimap').style.display = e.target.checked ? '' : 'none'; };
+$('btn-about').onclick = () => $('about').classList.toggle('open');
+$('about').onclick = (e) => { if (e.target.id === 'about' || e.target.classList.contains('close')) $('about').classList.remove('open'); };
 $('lay-boxes').onchange = () => {};
 $('acc').oninput = (e) => { $('acc-val').textContent = e.target.value; };
 $('acc').onchange = (e) => send({ cmd: 'accumulate', frames: +e.target.value });
@@ -612,6 +615,8 @@ $('scrub').onchange = (e) => send({ cmd: 'seek', frame: +e.target.value });
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   if (e.code === 'Space') { e.preventDefault(); $('btn-play').click(); }
+  if (e.code === 'KeyH' || e.code === 'Slash') $('btn-about').click();
+  if (e.code === 'Escape') $('about').classList.remove('open');
   if (e.code === 'ArrowRight') $('btn-next').click();
   if (e.code === 'ArrowLeft') $('btn-prev').click();
   if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)) document.querySelectorAll('#color-mode button')[+e.code.slice(-1) - 1].click();
@@ -621,6 +626,40 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+// ------------------------------------------------------------------ mini-map (top-down inset of the full map)
+const MINI = { size: 230, half: 60 };
+const miniCam = new THREE.OrthographicCamera(-MINI.half, MINI.half, MINI.half, -MINI.half, 1, 1000);
+miniCam.up.set(1, 0, 0);                       // vehicle forward (+x) points up in the inset
+miniCam.position.set(0, 0, 300);
+miniCam.lookAt(0, 0, 0);
+function miniRect() {
+  const el = $('minimap');
+  if (!el || el.style.display === 'none' || !$('lay-mini').checked) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: innerHeight - r.bottom, w: r.width, h: r.height };
+}
+function renderMini() {
+  const r = miniRect();
+  if (!r) return;
+  const fogFar = cellMat.uniforms.uFogFar.value;
+  cellMat.uniforms.uFogFar.value = 1e6;
+  cellMat.uniforms.uFogNear.value = 1e6 - 1;
+  const showPts = points.visible, showSweep = sweep.visible;
+  points.visible = false; sweep.visible = false;
+  renderer.setScissorTest(true);
+  renderer.setScissor(r.x, r.y, r.w, r.h);
+  renderer.setViewport(r.x, r.y, r.w, r.h);
+  renderer.setClearColor(0x05080c);
+  renderer.clear();
+  renderer.render(scene, miniCam);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, innerWidth, innerHeight);
+  renderer.setClearColor(BG);
+  cellMat.uniforms.uFogFar.value = fogFar;
+  cellMat.uniforms.uFogNear.value = 120;
+  points.visible = showPts; sweep.visible = showSweep;
+}
 
 // ------------------------------------------------------------------ render loop
 function animate(t) {
@@ -635,6 +674,7 @@ function animate(t) {
   sweep.rotation.z = -t * 0.0042;
   controls.update();
   renderer.render(scene, camera);
+  if (ui.view !== 'top') renderMini();
   placeLabels();
 }
 setView('chase');
