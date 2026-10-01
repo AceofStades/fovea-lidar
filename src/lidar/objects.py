@@ -15,11 +15,12 @@ CELL = {VEHICLE: 0.35, PEDESTRIAN: 0.25}
 
 
 def detect(xyz, category):
-    """xyz (N, 3) numpy, category (N,) numpy -> list of boxes (dicts) in the sensor frame."""
+    """xyz (N, 3) numpy, category (N,) numpy -> list of boxes (dicts) in the sensor frame, each with
+    the indices of its points."""
     boxes = []
     for cat in (VEHICLE, PEDESTRIAN):
-        sel = category == cat
-        if sel.sum() < MIN_POINTS[cat]:
+        sel = np.flatnonzero(category == cat)
+        if len(sel) < MIN_POINTS[cat]:
             continue
         p = xyz[sel]
         ij = np.floor(p[:, :2] / CELL[cat]).astype(np.int64)
@@ -34,7 +35,9 @@ def detect(xyz, category):
             idx = order[bounds[k]:bounds[k + 1]]
             if len(idx) < MIN_POINTS[cat]:
                 continue
-            boxes.append(_box(p[idx], cat))
+            box = _box(p[idx], cat)
+            box["indices"] = sel[idx]  # into the input arrays; stripped before sending to clients
+            boxes.append(box)
     return boxes
 
 
