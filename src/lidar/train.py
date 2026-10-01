@@ -19,7 +19,7 @@ from .data import TRAIN_SEQS, VAL_SEQS, SemanticKittiVoxels, collate_voxels, rea
 from .labels import IGNORE, NUM_CLASSES, TRAIN_NAMES
 from .losses import seg_loss
 from .metrics import IoU
-from .models.spunet import SpUNet
+from .models.spunet import build_model
 
 
 def class_weights(root, seqs, samples=300):
@@ -65,6 +65,9 @@ def main():
     ap.add_argument("--max-hours", type=float, default=1e9)
     ap.add_argument("--max-iters", type=int, default=0, help="stop after n iterations (smoke tests)")
     ap.add_argument("--log-every", type=int, default=50)
+    ap.add_argument("--mix", type=float, default=0.0, help="probability of PolarMix augmentation")
+    ap.add_argument("--width", type=float, default=1.0, help="channel width multiplier")
+    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
     ddp = "LOCAL_RANK" in os.environ
@@ -77,7 +80,10 @@ def main():
     t_start = time.time()
     os.makedirs(args.out, exist_ok=True)
 
-    train_set = SemanticKittiVoxels(args.root, args.train_seqs.split(","), args.voxel, train=True, step=args.train_step)
+    torch.manual_seed(args.seed + rank)
+    np.random.seed(args.seed + rank)
+    train_set = SemanticKittiVoxels(args.root, args.train_seqs.split(","), args.voxel, train=True,
+                                    step=args.train_step, mix=args.mix)
     val_set = SemanticKittiVoxels(args.root, args.val_seqs.split(","), args.voxel, train=False, step=args.val_step)
     sampler = DistributedSampler(train_set) if ddp else None
     train_loader = DataLoader(train_set, args.batch, shuffle=sampler is None, sampler=sampler, num_workers=args.workers,
@@ -88,7 +94,7 @@ def main():
     if not len(train_set) or not len(val_set):
         raise SystemExit(f"no labeled scans found under {args.root}")
 
-    model = SpUNet(in_channels=5, num_classes=NUM_CLASSES).to(device)
+    model = build_model(args.width, in_channels=5, num_classes=NUM_CLASSES).to(device)
     if ddp:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device.index or int(os.environ["LOCAL_RANK"])])
