@@ -323,7 +323,21 @@ function decode(buf) {
   return { header, arrays };
 }
 
+// deep links for demos: ?frame=300&view=top&color=3&points=0&paused=1&source=gt&fusion=10
+const params = new URLSearchParams(location.search);
+function applyParams() {
+  if (params.has('view')) setView(params.get('view'));
+  if (params.has('color')) document.querySelectorAll('#color-mode button')[+params.get('color')]?.click();
+  if (params.has('pointcolor')) document.querySelectorAll('#point-mode button')[+params.get('pointcolor')]?.click();
+  if (params.get('points') === '0') $('lay-points').click();
+  if (params.has('source')) send({ cmd: 'source', source: params.get('source') });
+  if (params.has('fusion')) send({ cmd: 'accumulate', frames: +params.get('fusion') });
+  if (params.get('paused') === '1') send({ cmd: 'pause' });
+  if (params.has('frame')) send({ cmd: 'seek', frame: +params.get('frame') });
+}
+
 function onInfo(msg) {
+  const first = info === null;
   info = msg;
   $('chip-seq').textContent = `SEQ ${msg.sequence} · ${msg.frames} frames`;
   $('scrub').max = msg.frames - 1;
@@ -342,6 +356,7 @@ function onInfo(msg) {
   buildRings();
   buildMemory();
   buildLegend();
+  if (first) applyParams();
 }
 
 function setSourceButtons(src) {
