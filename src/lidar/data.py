@@ -62,6 +62,32 @@ def scan_files(root=DEFAULT_ROOT, seqs=VAL_SEQS, require_labels=True, step=1):
     return pairs
 
 
+# bicycle, motorcycle, truck, other-vehicle, person, bicyclist, motorcyclist
+RARE_CLASSES = np.array([1, 2, 3, 4, 5, 6, 7])
+
+
+def polarmix(pts1, lab1, pts2, lab2, rotations=3):
+    """PolarMix (Xiao et al., NeurIPS 2022): swap a random half-plane sector between two scans,
+    then paste rotated copies of the rare-class points of the second scan."""
+    a = np.random.uniform(-np.pi, np.pi)
+    def in_sector(p):
+        d = (np.arctan2(p[:, 1], p[:, 0]) - a) % (2 * np.pi)
+        return d < np.pi
+    s1, s2 = in_sector(pts1), in_sector(pts2)
+    pts = [pts1[~s1], pts2[s2]]
+    lab = [lab1[~s1], lab2[s2]]
+    rare = np.isin(lab2, RARE_CLASSES)
+    if rare.any():
+        for k in range(rotations):
+            t = np.random.uniform(0, 2 * np.pi)
+            rot = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]], np.float32)
+            p = pts2[rare].copy()
+            p[:, :2] = p[:, :2] @ rot.T
+            pts.append(p)
+            lab.append(lab2[rare])
+    return np.concatenate(pts), np.concatenate(lab)
+
+
 def voxelize(coords_int):
     """Unique voxels of an (N, 3) int array. Returns (unique coords, index of one point per voxel,
     inverse map point -> voxel)."""
@@ -80,11 +106,12 @@ class SemanticKittiVoxels:
     """
 
     def __init__(self, root=DEFAULT_ROOT, seqs=TRAIN_SEQS, voxel_size=0.05, max_range=100.0,
-                 train=True, step=1):
+                 train=True, step=1, mix=0.0):
         self.files = scan_files(root, seqs, require_labels=True, step=step)
         self.voxel_size = voxel_size
         self.max_range = max_range
         self.train = train
+        self.mix = mix
 
     def __len__(self):
         return len(self.files)
@@ -93,6 +120,9 @@ class SemanticKittiVoxels:
         scan_path, label_path = self.files[i]
         pts = read_scan(scan_path)
         labels, moving, _ = read_label(label_path)
+        if self.train and self.mix and np.random.rand() < self.mix:
+            j = np.random.randint(len(self.files))
+            pts, labels = polarmix(pts, labels, read_scan(self.files[j][0]), read_label(self.files[j][1])[0])
         keep = np.abs(pts[:, :2]).max(1) < self.max_range
         pts, labels = pts[keep], labels[keep]
         xyz = pts[:, :3].copy()
