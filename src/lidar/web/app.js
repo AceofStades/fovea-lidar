@@ -153,16 +153,35 @@ scene.add(points);
 
 // ------------------------------------------------------------------ ego vehicle, sweep, trajectory
 const ego = new THREE.Group();
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe6edf7, metalness: 0.35, roughness: 0.45 });
-const glassMat = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, metalness: 0.6, roughness: 0.2 });
-const body = new THREE.Mesh(new THREE.BoxGeometry(4.3, 1.8, 0.75), bodyMat);
-body.position.set(0.0, 0, -SENSOR_H + 0.3 + 0.375);
-const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.62, 0.62), glassMat);
-cabin.position.set(-0.35, 0, -SENSOR_H + 0.3 + 0.75 + 0.31);
-const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.22, 24), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0b4a6b }));
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdfe7f2, metalness: 0.55, roughness: 0.35 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0x5d8fc9, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.85 });
+const tyreMat = new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 0.9 });
+const lampMat = new THREE.MeshBasicMaterial({ color: 0xbfe9ff });
+const tailMat = new THREE.MeshBasicMaterial({ color: 0xff3b55 });
+const floorZ = -SENSOR_H;
+const body = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.82, 0.62), bodyMat);
+body.position.set(0.1, 0, floorZ + 0.28 + 0.31);
+const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.64, 0.6), glassMat);
+cabin.position.set(-0.3, 0, floorZ + 0.9 + 0.3);
+const roof = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.6, 0.06), bodyMat);
+roof.position.set(-0.35, 0, floorZ + 1.53);
+ego.add(body, cabin, roof);
+for (const [x, y] of [[1.45, 0.86], [1.45, -0.86], [-1.3, 0.86], [-1.3, -0.86]]) {
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 20), tyreMat);
+  t.position.set(x, y, floorZ + 0.34);
+  ego.add(t);
+}
+for (const y of [0.62, -0.62]) {
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.34, 0.1), lampMat);
+  head.position.set(2.31, y, floorZ + 0.72);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.34, 0.1), tailMat);
+  tail.position.set(-2.11, y, floorZ + 0.75);
+  ego.add(head, tail);
+}
+const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.2, 24), new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0x38bdf8, emissiveIntensity: 0.45 }));
 puck.rotation.x = Math.PI / 2;
 puck.position.set(0, 0, -0.1);
-ego.add(body, cabin, puck);
+ego.add(puck);
 scene.add(ego);
 
 const sweep = new THREE.Mesh(
@@ -232,6 +251,8 @@ function setBoxes(boxes) {
     m.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
     if (b.moving) m.material.color.setRGB(1, 0.3, 0.4);
     lab.active = true;
+    lab.moving = b.moving;
+    lab.distance = b.distance;
     lab.pos.set(b.center[0], b.center[1], b.center[2] + b.size[2] / 2 + 0.3);
     const name = info.categories[b.category];
     lab.el.className = 'tag' + (b.moving ? ' mv' : '');
@@ -252,7 +273,7 @@ function placeLabels() {
   };
   const showRings = $('lay-rings').checked;
   ringLabels.forEach((l) => place(l, showRings));
-  boxLabels.forEach((l) => place(l, l.active && $('lay-boxes').checked && camera.position.distanceTo(l.pos) < 90));
+  boxLabels.forEach((l) => place(l, l.active && $('lay-boxes').checked && (l.moving || l.distance < 40) && camera.position.distanceTo(l.pos) < 75));
 }
 
 // ------------------------------------------------------------------ camera presets
@@ -398,7 +419,7 @@ function buildLegend() {
   let html = '<h3>Legend</h3>';
   if (ui.colorMode === 0) {
     info.categories.forEach((n, i) => { if (i) html += item(info.category_colors[i], n); });
-    html += item([255, 38, 89], 'moving (ground truth)');
+    html += item([255, 38, 89], 'moving object (tracked)');
   } else if (ui.colorMode === 1) {
     info.traversability.forEach((n, i) => { if (i) html += item(info.traversability_colors[i], n); });
   } else if (ui.colorMode === 2) {
@@ -438,7 +459,13 @@ function updatePanels(h) {
   // accuracy
   const met = h.metrics;
   $('acc-section').style.display = met ? '' : 'none';
+  $('seg-metrics').style.display = met && !met.motion_only ? '' : 'none';
   if (met) {
+    $('kpi-mov').textContent = `${(met.moving_iou * 100).toFixed(1)}%`;
+    $('kpi-movp').textContent = `${(met.moving_precision * 100).toFixed(0)}%`;
+    $('kpi-movr').textContent = `${(met.moving_recall * 100).toFixed(0)}%`;
+  }
+  if (met && !met.motion_only) {
     $('kpi-miou').textContent = `${(met.miou_19 * 100).toFixed(1)}%`;
     const cv = Object.values(met.category_iou).filter((v) => v !== null);
     $('kpi-cat').textContent = `${(cv.reduce((s, v) => s + v, 0) / cv.length * 100).toFixed(1)}%`;

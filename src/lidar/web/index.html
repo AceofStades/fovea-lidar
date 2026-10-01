@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FOVEA · Adaptive 2.5D LiDAR Mapping</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='5' fill='none' stroke='%2338bdf8' stroke-width='3'/%3E%3Crect x='9' y='9' width='14' height='14' rx='3' fill='none' stroke='%23a78bfa' stroke-width='3'/%3E%3Crect x='14' y='14' width='4' height='4' fill='white'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
 <script type="importmap">
 { "imports": { "three": "/static/vendor/three.module.js", "three/addons/": "/static/vendor/" } }
@@ -103,14 +104,22 @@
   </section>
   <section id="acc-section">
     <h3>Accuracy vs ground truth <span class="val" id="acc-points"></span></h3>
-    <div class="kpis two">
-      <div class="kpi"><div class="k" id="kpi-miou">—</div><div class="l">mIoU (19 classes)</div></div>
-      <div class="kpi"><div class="k" id="kpi-cat">—</div><div class="l">mIoU (map categories)</div></div>
+    <div id="seg-metrics">
+      <div class="kpis two">
+        <div class="kpi"><div class="k" id="kpi-miou">—</div><div class="l">mIoU (19 classes)</div></div>
+        <div class="kpi"><div class="k" id="kpi-cat">—</div><div class="l">mIoU (map categories)</div></div>
+      </div>
+      <div class="sub">By distance from the sensor</div>
+      <div id="dist-bars"></div>
+      <div class="sub">By map category</div>
+      <div id="cat-bars"></div>
     </div>
-    <div class="sub">By distance from the sensor</div>
-    <div id="dist-bars"></div>
-    <div class="sub">By map category</div>
-    <div id="cat-bars"></div>
+    <div class="sub">Moving objects (tracker vs labelled motion)</div>
+    <div class="kpis">
+      <div class="kpi"><div class="k" id="kpi-mov">—</div><div class="l">moving IoU</div></div>
+      <div class="kpi"><div class="k" id="kpi-movp">—</div><div class="l">precision</div></div>
+      <div class="kpi"><div class="k" id="kpi-movr">—</div><div class="l">recall</div></div>
+    </div>
   </section>
   <section>
     <h3>Tracked objects <span class="val" id="obj-count"></span></h3>
