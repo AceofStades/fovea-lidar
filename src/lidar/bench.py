@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--accumulate", type=int, default=10)
     ap.add_argument("--warmup", type=int, default=10)
     ap.add_argument("--out", default="docs/results")
+    ap.add_argument("--name", default="results", help="output file stem (the run's label in charts)")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
@@ -108,7 +109,7 @@ def main():
             "cell_accuracy": cell_agree.accuracy(),
             "category_iou": {n: (None if np.isnan(v) else float(v)) for n, v in zip(CATEGORY_NAMES, cell_agree.iou()) if n != "unknown"},
         }
-    with open(os.path.join(args.out, "results.json"), "w") as f:
+    with open(os.path.join(args.out, f"{args.name}.json"), "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps(res, indent=2))
 
