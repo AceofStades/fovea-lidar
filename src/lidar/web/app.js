@@ -276,6 +276,51 @@ function placeLabels() {
   boxLabels.forEach((l) => place(l, l.active && $('lay-boxes').checked && (l.moving || l.distance < 40) && camera.position.distanceTo(l.pos) < 75));
 }
 
+// ------------------------------------------------------------------ cell inspector (hover)
+const inspector = $('inspector');
+const hoverBox = new THREE.LineLoop(
+  new THREE.BufferGeometry().setFromPoints([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([x, y]) => new THREE.Vector3(x, y, 0))),
+  new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
+hoverBox.renderOrder = 10;
+hoverBox.visible = false;
+scene.add(hoverBox);
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), SENSOR_H);
+const mouse = { x: 0, y: 0, last: 0, over: false };
+renderer.domElement.addEventListener('pointermove', (e) => {
+  mouse.x = e.clientX; mouse.y = e.clientY; mouse.over = true;
+  const now = performance.now();
+  if (now - mouse.last < 80 || e.buttons) return;
+  mouse.last = now;
+  raycaster.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+  const hit = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(groundPlane, hit)) send({ cmd: 'inspect', x: hit.x, y: hit.y });
+});
+renderer.domElement.addEventListener('pointerleave', () => { mouse.over = false; inspector.style.display = 'none'; hoverBox.visible = false; });
+
+function onInspect(m) {
+  if (!m.inside || !m.count || !mouse.over) { inspector.style.display = 'none'; hoverBox.visible = false; return; }
+  hoverBox.visible = true;
+  hoverBox.position.set(m.center[0], m.center[1], m.ground_z + 0.06);
+  hoverBox.scale.set(m.cell, m.cell, 1);
+  const cat = info.categories[m.category], trav = info.traversability[m.traversability];
+  const cc = info.category_colors[m.category], tc = info.traversability_colors[m.traversability];
+  const f = (v, d = 2) => (v === null || v === undefined ? '—' : `${v.toFixed(d)} m`);
+  inspector.innerHTML = `
+    <div class="ih">${Math.round(m.cell * 100)} cm cell <span>ring L${m.level} · ${m.ring[0]}–${m.ring[1]} m</span></div>
+    <div class="ir"><span>category</span><b><i style="background:rgb(${cc})"></i>${cat}</b></div>
+    <div class="ir"><span>drivability</span><b><i style="background:rgb(${tc})"></i>${trav}</b></div>
+    <div class="ir"><span>ground height</span><b>${f(m.ground_z)}${m.ground_observed ? '' : ' (filled)'}</b></div>
+    <div class="ir"><span>step to neighbours</span><b>${f(m.step)}</b></div>
+    <div class="ir"><span>obstacle top</span><b>${f(m.obstacle_top)}</b></div>
+    <div class="ir"><span>clearance</span><b>${f(m.clearance)}</b></div>
+    <div class="ir"><span>points (fused)</span><b>${m.count}${m.moving_points ? ` · ${m.moving_points} moving` : ''}</b></div>
+    <div class="ir"><span>index</span><b>(${m.ix}, ${m.iy})</b></div>`;
+  inspector.style.display = 'block';
+  inspector.style.left = `${Math.min(mouse.x + 18, innerWidth - 250)}px`;
+  inspector.style.top = `${Math.min(mouse.y + 18, innerHeight - 230)}px`;
+}
+
 // ------------------------------------------------------------------ camera presets
 const VIEWS = {
   chase: { pos: [-17, -3, 8.5], target: [14, 0, -SENSOR_H], rotate: false },
@@ -303,8 +348,11 @@ function connect() {
   ws.onopen = () => setConn('live', 'ok');
   ws.onclose = () => { setConn('reconnecting…', 'err'); setTimeout(connect, 1500); };
   ws.onmessage = (ev) => {
-    if (typeof ev.data === 'string') onInfo(JSON.parse(ev.data));
-    else onFrame(decode(ev.data));
+    if (typeof ev.data === 'string') {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'inspect') onInspect(msg);
+      else onInfo(msg);
+    } else onFrame(decode(ev.data));
   };
 }
 function setConn(text, cls) {
