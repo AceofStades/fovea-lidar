@@ -20,7 +20,9 @@ class ObjectEval:
         self.pred = np.zeros((2, n), int)
 
     def _bin(self, d):
-        return int(np.clip(np.digitize(d, self.bins) - 1, 0, len(self.bins) - 2))
+        """Distance band index, or None beyond the labelled range (nothing to compare against)."""
+        b = int(np.digitize(d, self.bins) - 1)
+        return b if 0 <= b < len(self.bins) - 1 else None
 
     def update(self, xyz, gt_train, gt_instance, boxes, box_indices):
         """Match detections to labelled objects with one joint histogram over (object, box) point
@@ -48,6 +50,8 @@ class ObjectEval:
             k = 0 if c == VEHICLE else 1
             pts = np.flatnonzero(gt_id == g)
             b = self._bin(float(np.hypot(*xyz[pts, :2].mean(0))))
+            if b is None:
+                continue
             self.gt[k, b] += 1
             inter = joint[g, 1:]
             iou = inter / np.maximum(size_g[g] + size_b[1:] - inter, 1)
@@ -57,12 +61,16 @@ class ObjectEval:
                 if j in matched or boxes[j]["category"] != c:
                     continue
                 self.tp_gt[k, b] += 1
-                self.tp_pred[k, self._bin(boxes[j]["distance"])] += 1
+                bp = self._bin(boxes[j]["distance"])
+                if bp is not None:
+                    self.tp_pred[k, bp] += 1
                 matched.add(j)
                 break
         for box in boxes:
             k = 0 if box["category"] == VEHICLE else 1
-            self.pred[k, self._bin(box["distance"])] += 1
+            bp = self._bin(box["distance"])
+            if bp is not None:
+                self.pred[k, bp] += 1
 
     def summary(self):
         out = {}
