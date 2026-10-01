@@ -13,6 +13,7 @@ from .labels import (CATEGORY_NAMES, IGNORE, NUM_CATEGORIES, NUM_CLASSES, PEDEST
                      UNKNOWN, VEHICLE)
 from .metrics import IoU, IoUByDistance
 from .objects import MotionCue, Tracker, detect
+from .objeval import ObjectEval
 
 
 class Timer:
@@ -69,6 +70,7 @@ class Pipeline:
         self.iou_dist = IoUByDistance(NUM_CATEGORIES)
         self.latency_hist = deque(maxlen=300)
         self.motion_tp = self.motion_fp = self.motion_fn = 0
+        self.objects_eval = ObjectEval()
 
     def has_labels(self, i):
         return self.files[i][1] is not None and Path(self.files[i][1]).exists()
@@ -81,9 +83,9 @@ class Pipeline:
         tm = Timer(self.device)
         scan_path, label_path = self.files[i]
         pts = torch.from_numpy(read_scan(scan_path)).to(self.device)
-        gt = moving = None
+        gt = moving = gt_inst = None
         if self.has_labels(i):
-            gt_np, moving_np, _ = read_label(label_path)
+            gt_np, moving_np, gt_inst = read_label(label_path)
             gt, moving = torch.from_numpy(gt_np.astype(np.int64)).to(self.device), torch.from_numpy(moving_np).to(self.device)
         tm.lap("load")
 
@@ -154,6 +156,8 @@ class Pipeline:
             gt_cat = np.where(gt_np == IGNORE, 255, gt_cat)
             self.cat_iou.update(cat_np.astype(np.int64), gt_cat)
             self.iou_dist.update(cat_np.astype(np.int64), gt_cat, xyz_np)
+        if gt_inst is not None:
+            self.objects_eval.update(xyz_np, gt_np, gt_inst, boxes, box_indices)
         if moving is not None:
             gm = moving.cpu().numpy()
             self.motion_tp += int((gm & moving_np).sum())
@@ -172,7 +176,9 @@ class Pipeline:
 
     def metrics_summary(self):
         if self.cat_iou.cm.sum() == 0:
-            return {"motion_only": True, **self.motion_summary()} if self.motion_tp + self.motion_fn else None
+            if not self.objects_eval.gt.sum():
+                return None
+            return {"motion_only": True, **self.motion_summary(), "objects": self.objects_eval.summary()}
         cat_iou = self.cat_iou.iou()
         return {
             "miou_19": self.iou.miou(),
@@ -180,6 +186,7 @@ class Pipeline:
             "category_iou": {n: (None if np.isnan(v) else float(v)) for n, v in zip(CATEGORY_NAMES, cat_iou) if n != "unknown"},
             "by_distance": {k: {"miou": v[0], "acc": v[1], "points": v[2]} for k, v in self.iou_dist.summary().items()},
             "points_evaluated": int(self.iou.cm.sum()),
+            "objects": self.objects_eval.summary(),
             **self.motion_summary(),
         }
 
