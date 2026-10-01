@@ -119,16 +119,17 @@ uv sync
 uv run python scripts/download_semantickitti.py
 
 # live simulator (ground-truth labels until a checkpoint is given)
-PYTHONPATH=src uv run python -m lidar.sim.server --seq 08 [--checkpoint runs/spunet-5cm/best.pt]
+uv run lidar sim --seq 08 [--checkpoint runs/spunet-5cm/best.pt]
 # open http://127.0.0.1:8000   (deep links: ?frame=880&view=top&color=3)
 
 # training (single GPU / multi GPU)
-PYTHONPATH=src uv run python -m lidar.train --root data/semantickitti --out runs/spunet-5cm --max-hours 8
-PYTHONPATH=src uv run torchrun --nproc_per_node=2 -m lidar.train ...
+uv run lidar train --root data/semantickitti --out runs/spunet-5cm --mix 0.5 --max-hours 8
+uv run torchrun --nproc_per_node=2 -m lidar.train ...
 
-# benchmark + tests
-PYTHONPATH=src uv run python -m lidar.bench --checkpoint runs/spunet-5cm/best.pt --out docs/results
-PYTHONPATH=src uv run pytest -q
+# benchmark, charts, tests
+uv run lidar bench --checkpoint runs/spunet-5cm/best.pt --out docs/results --name spunet-5cm
+uv run python scripts/make_charts.py docs/results/*.json --out docs/img
+uv run pytest -q
 ```
 
 Training on Kaggle (2× T4, data from the public SemanticKITTI copy, code embedded in the kernel):
