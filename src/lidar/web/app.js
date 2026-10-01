@@ -113,7 +113,10 @@ const cellMat = new THREE.ShaderMaterial({
 });
 const cells = new THREE.Mesh(cellGeo, cellMat);
 cells.frustumCulled = false;
-scene.add(cells);
+const mapFrame = new THREE.Group();            // grid (map) frame -> sensor frame, updated every frame
+mapFrame.matrixAutoUpdate = false;
+mapFrame.add(cells);
+scene.add(mapFrame);
 
 // ------------------------------------------------------------------ raw points
 const ptGeo = new THREE.BufferGeometry();
@@ -198,7 +201,7 @@ scene.add(traj);
 
 // ------------------------------------------------------------------ resolution rings + HTML labels
 const rings = new THREE.Group();
-scene.add(rings);
+mapFrame.add(rings);
 const labelLayer = $('labels');
 const ringLabels = [];
 function buildRings() {
@@ -272,7 +275,12 @@ function placeLabels() {
     lab.el.style.top = `${(-tmpV.y * 0.5 + 0.5) * h}px`;
   };
   const showRings = $('lay-rings').checked;
-  ringLabels.forEach((l) => place(l, showRings));
+  ringLabels.forEach((l) => {
+    const local = l.pos;
+    l.pos = local.clone().applyMatrix4(mapFrame.matrix);   // ring labels are anchored in the map frame
+    place(l, showRings);
+    l.pos = local;
+  });
   boxLabels.forEach((l) => place(l, l.active && $('lay-boxes').checked && (l.moving || l.distance < 40) && camera.position.distanceTo(l.pos) < 75));
 }
 
@@ -283,7 +291,7 @@ const hoverBox = new THREE.LineLoop(
   new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
 hoverBox.renderOrder = 10;
 hoverBox.visible = false;
-scene.add(hoverBox);
+mapFrame.add(hoverBox);
 const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), SENSOR_H);
 const mouse = { x: 0, y: 0, last: 0, over: false };
@@ -413,6 +421,7 @@ function setSourceButtons(src) {
 }
 
 function onFrame({ header: h, arrays: a }) {
+  if (h.sensor_from_map) { mapFrame.matrix.fromArray(h.sensor_from_map); mapFrame.matrixWorldNeedsUpdate = true; }
   // cells
   const geo = a.cells_geo, attr = a.cells_attr;
   const n = Math.min(geo.length / 5, CAP_CELLS);
