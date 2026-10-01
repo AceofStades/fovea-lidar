@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOVEA · Adaptive 2.5D LiDAR Mapping</title>
+<link rel="stylesheet" href="/static/style.css">
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three.module.js", "three/addons/": "/static/vendor/" } }
+</script>
+</head>
+<body>
+<div id="viewport"></div>
+<div id="labels"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo"><span></span><span></span><span></span></div>
+    <div>
+      <div class="title">FOVEA</div>
+      <div class="subtitle">Adaptive variable-resolution 2.5D LiDAR mapping</div>
+    </div>
+  </div>
+  <div class="chips">
+    <div class="chip" id="chip-conn"><i class="dot"></i><span>connecting…</span></div>
+    <div class="chip" id="chip-seq">SEQ —</div>
+    <div class="chip accent" id="chip-source">—</div>
+    <div class="chip big" id="chip-fps"><b>—</b> FPS</div>
+    <div class="chip big" id="chip-lat"><b>—</b> ms</div>
+  </div>
+</header>
+
+<aside class="panel left" id="left">
+  <section>
+    <h3>View</h3>
+    <div class="seg" id="view-mode">
+      <button data-v="chase" class="on">Chase</button>
+      <button data-v="top">Top-down</button>
+      <button data-v="orbit">Orbit</button>
+    </div>
+  </section>
+  <section>
+    <h3>Map colour</h3>
+    <div class="seg wrap" id="color-mode">
+      <button data-m="0" class="on">Semantic</button>
+      <button data-m="1">Drivability</button>
+      <button data-m="2">Height</button>
+      <button data-m="3">Resolution</button>
+    </div>
+  </section>
+  <section>
+    <h3>Layers</h3>
+    <label class="tog"><input type="checkbox" id="lay-cells" checked><span></span>2.5D map cells</label>
+    <label class="tog"><input type="checkbox" id="lay-points" checked><span></span>Raw LiDAR points</label>
+    <label class="tog"><input type="checkbox" id="lay-rings" checked><span></span>Resolution rings</label>
+    <label class="tog"><input type="checkbox" id="lay-boxes" checked><span></span>Object boxes</label>
+    <label class="tog"><input type="checkbox" id="lay-traj" checked><span></span>Ego trajectory</label>
+  </section>
+  <section>
+    <h3>Point colour</h3>
+    <div class="seg" id="point-mode">
+      <button data-p="0" class="on">Prediction</button>
+      <button data-p="1">Truth</button>
+      <button data-p="2">Errors</button>
+    </div>
+  </section>
+  <section>
+    <h3>Segmentation source</h3>
+    <div class="seg" id="source-mode">
+      <button data-s="model">Neural net</button>
+      <button data-s="gt">Ground truth</button>
+    </div>
+    <div class="hint" id="model-hint"></div>
+  </section>
+  <section>
+    <h3>Temporal fusion <span class="val" id="acc-val">10</span></h3>
+    <input type="range" id="acc" min="1" max="30" value="10">
+    <div class="hint">Static structure from the last N scans, aligned with ego poses. Moving objects only from the current scan.</div>
+  </section>
+  <section class="legend" id="legend"></section>
+</aside>
+
+<aside class="panel right" id="right">
+  <section>
+    <h3>Real-time performance</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="k" id="kpi-fps">—</div><div class="l">pipeline FPS</div></div>
+      <div class="kpi"><div class="k" id="kpi-p50">—</div><div class="l">p50 latency ms</div></div>
+      <div class="kpi"><div class="k" id="kpi-p95">—</div><div class="l">p95 latency ms</div></div>
+    </div>
+    <div class="stack" id="stage-bar"></div>
+    <div class="stage-legend" id="stage-legend"></div>
+    <canvas id="spark" width="600" height="110"></canvas>
+    <div class="hint">Dashed line: 100 ms budget of a 10 Hz LiDAR.</div>
+  </section>
+  <section>
+    <h3>Memory vs uniform maps</h3>
+    <div id="mem"></div>
+  </section>
+  <section>
+    <h3>Foveated resolution rings</h3>
+    <table class="rings" id="rings"></table>
+  </section>
+  <section id="acc-section">
+    <h3>Accuracy vs ground truth <span class="val" id="acc-points"></span></h3>
+    <div class="kpis two">
+      <div class="kpi"><div class="k" id="kpi-miou">—</div><div class="l">mIoU (19 classes)</div></div>
+      <div class="kpi"><div class="k" id="kpi-cat">—</div><div class="l">mIoU (map categories)</div></div>
+    </div>
+    <div class="sub">By distance from the sensor</div>
+    <div id="dist-bars"></div>
+    <div class="sub">By map category</div>
+    <div id="cat-bars"></div>
+  </section>
+  <section>
+    <h3>Tracked objects <span class="val" id="obj-count"></span></h3>
+    <div id="objects"></div>
+  </section>
+</aside>
+
+<footer class="timeline">
+  <button id="btn-prev" title="Previous frame">⏮</button>
+  <button id="btn-play" class="play" title="Play / pause">⏸</button>
+  <button id="btn-next" title="Next frame">⏭</button>
+  <input type="range" id="scrub" min="0" max="0" value="0">
+  <div class="frame" id="frame-label">0 / 0</div>
+  <select id="speed" title="Replay rate">
+    <option value="5">0.5×</option>
+    <option value="10" selected>1× (10 Hz)</option>
+    <option value="20">2×</option>
+    <option value="100">max</option>
+  </select>
+</footer>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
