@@ -102,6 +102,7 @@ class Session:
         self.send_points = True
         self.dirty = True
         self.last_frame = None
+        self.sensor_from_map = np.eye(4)
         self.lock = asyncio.Lock()
 
 
@@ -127,6 +128,7 @@ def build_app(pipe, fps=10.0):
         "traversability": TRAVERSABILITY_NAMES, "traversability_colors": TRAVERSABILITY_COLORS.tolist(),
         "vehicle_height": pipe.grid.cfg.vehicle_height,
         "accumulate": pipe.accumulate,
+        "anchor": pipe.anchor,
     }
 
     @app.websocket("/ws")
@@ -163,7 +165,9 @@ def build_app(pipe, fps=10.0):
                 elif cmd == "reset_metrics":
                     pipe.reset_metrics()
                 elif cmd == "inspect" and s.last_frame is not None:
-                    reply = inspect_cell(pipe, s.last_frame, float(msg["x"]), float(msg["y"]))
+                    # the client raycasts in the sensor frame; the grid lives in the map frame
+                    q = np.linalg.inv(s.sensor_from_map) @ np.array([float(msg["x"]), float(msg["y"]), -1.73, 1.0])
+                    reply = inspect_cell(pipe, s.last_frame, float(q[0]), float(q[1]))
                     async with s.lock:
                         await socket.send_text(json.dumps(reply))
 
@@ -205,6 +209,7 @@ def build_app(pipe, fps=10.0):
                     "metrics": pipe.metrics_summary(),
                     "latency_p50": float(np.percentile(pipe.latency_hist, 50)) if pipe.latency_hist else out["pipeline_ms"],
                     "latency_p95": float(np.percentile(pipe.latency_hist, 95)) if pipe.latency_hist else out["pipeline_ms"],
+                    "sensor_from_map": out["sensor_from_map"].T.reshape(-1).tolist(),  # column-major for three.js
                     "playing": s.playing,
                     "accumulate": pipe.accumulate,
                 }
@@ -213,6 +218,7 @@ def build_app(pipe, fps=10.0):
                 if s.playing and wait > 0:
                     await asyncio.sleep(wait)
                 s.last_frame = out["frame"]
+                s.sensor_from_map = out["sensor_from_map"]
                 async with s.lock:
                     await socket.send_bytes(encode(header, bufs))
                 last_sent = time.perf_counter()
@@ -234,10 +240,12 @@ def main():
     ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--accumulate", type=int, default=10)
     ap.add_argument("--fps", type=float, default=10.0)
+    ap.add_argument("--anchor", choices=["world", "ego"], default="world",
+                    help="world: cell lattice fixed in the world (scrolling rings); ego: grid turns with the vehicle")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
-    pipe = Pipeline(args.root, args.seq, args.checkpoint, GridConfig(), args.accumulate)
+    pipe = Pipeline(args.root, args.seq, args.checkpoint, GridConfig(), args.accumulate, anchor=args.anchor)
     print(f"sequence {args.seq}: {len(pipe)} frames, source={pipe.source}; open http://{args.host}:{args.port}")
     uvicorn.run(build_app(pipe, args.fps), host=args.host, port=args.port, log_level="warning")
 
