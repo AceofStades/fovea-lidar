@@ -53,13 +53,20 @@ else:
 out = WORK + "/run"
 os.makedirs(out, exist_ok=True)
 for dirpath, dirnames, files in os.walk("/kaggle/input"):
-    if "sequences" in dirnames or dirpath.count(os.sep) > 6:
+    if "sequences" in dirnames or dirpath.count(os.sep) > 9:
         dirnames[:] = []
     if "last.pt" in files and not os.path.exists(out + "/last.pt"):
         for f in ("last.pt", "best.pt", "log.jsonl"):
             if os.path.exists(os.path.join(dirpath, f)):
                 shutil.copy(os.path.join(dirpath, f), out)
         print("resuming from", dirpath, flush=True)
+sys.path.insert(0, WORK + "/code/src")
+from lidar.data import scan_files, TRAIN_SEQS, VAL_SEQS
+n_train, n_val = len(scan_files("/kaggle/input", TRAIN_SEQS)), len(scan_files("/kaggle/input", VAL_SEQS))
+print("dataset scans: train", n_train, "val", n_val, flush=True)
+if not n_train or not n_val:
+    subprocess.run("find /kaggle/input -maxdepth 6 -type d | head -40", shell=True)
+    sys.exit("dataset not found")
 import torch
 ngpu = max(torch.cuda.device_count(), 1)
 env = dict(os.environ, PYTHONPATH=WORK + "/code/src", OMP_NUM_THREADS="1")
@@ -106,6 +113,7 @@ def main():
     ap.add_argument("--resume-from", default=None, help="<user>/<kernel> whose output holds last.pt")
     ap.add_argument("--gpu", default="NvidiaTeslaT4")
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--logs", action="store_true", help="print the log of the latest (finished) run")
     ap.add_argument("--fetch", default=None, help="download the kernel output into this folder")
     ap.add_argument("train_args", nargs="*")
     args = ap.parse_args()
@@ -114,6 +122,15 @@ def main():
 
     if args.status:
         print(kaggle(args.account, "kernels", "status", ref, check=False).stdout.strip())
+        return
+    if args.logs:
+        raw = kaggle(args.account, "kernels", "logs", ref, check=False).stdout
+        try:
+            text = "".join(d.get("data", "") for d in json.loads(raw))
+        except ValueError:
+            text = raw
+        noise = ("warn", "fx_tracing", "return func")
+        print("\n".join(l for l in text.splitlines() if l.strip() and not any(n in l.lower() for n in noise)))
         return
     if args.fetch:
         os.makedirs(args.fetch, exist_ok=True)
