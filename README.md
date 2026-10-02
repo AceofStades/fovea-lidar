@@ -223,6 +223,23 @@ ring0 = cells[m["offset"][k]:m["offset"][k + 1]].reshape(m["width"][k], m["width
 print(cells.nbytes / 1e6, "MB")  # 8.0
 ```
 
+## Diagrams
+
+Interactive diagrams (standalone HTML with light/dark themes and PNG/SVG export; open them in a
+browser). Every box links to the source lines it describes.
+
+| Diagram | Shows |
+|---|---|
+| [`system-architecture.html`](docs/diagrams/system-architecture.html) | Components of the live simulator, the trained weights and the dataset |
+| [`model-architecture.html`](docs/diagrams/model-architecture.html) | The sparse 3D U-Net: encoder, decoder, skip connections, head |
+| [`frame-sequence.html`](docs/diagrams/frame-sequence.html) | One frame from `step(i)` to the browser, plus the inspector round trip |
+| [`grid-engine.html`](docs/diagrams/grid-engine.html) | How fused points become the foveated 2.5D layers |
+| [`training-workflow.html`](docs/diagrams/training-workflow.html) | Training on Kaggle, early-stop guards, evaluation and model selection |
+| [`track-lifecycle.html`](docs/diagrams/track-lifecycle.html) | How a cluster becomes a track and switches between static and moving |
+
+The diagrams are built with the archify skill from the specs in `docs/diagrams/src/`
+(`archify finalize <type> docs/diagrams/src/<name>.json docs/diagrams/<name>.html --repo-root .`).
+
 ## Repository layout
 
 ```
@@ -240,7 +257,7 @@ src/lidar/
   sim/server.py  WebSocket simulator backend, map snapshot endpoint
   web/           three.js frontend (vendored, works offline)
 models/          trained weights (fp16): final 10 cm model, narrow 5 cm model
-docs/            results JSON, charts, screenshots, demo video
+docs/            results JSON, charts, screenshots, demo video, architecture diagrams
 scripts/         dataset download, Kaggle launcher, weight export, charts, screenshots, demo recorder
 tests/           grid invariants, objects, tracking, motion cue, detection metrics, PolarMix
 ```
