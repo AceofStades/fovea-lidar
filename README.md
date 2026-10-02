@@ -31,6 +31,8 @@ A 70-second walkthrough of the simulator is in [`docs/demo.mp4`](docs/demo.mp4)
 
 ## Pipeline
 
+![FOVEA architecture overview](docs/figures/architecture_overview.png)
+
 ```
 LiDAR scan (x, y, z, remission)            ~120k points, 10 Hz
    │
@@ -236,6 +238,13 @@ browser). Every box links to the source lines it describes.
 | [`grid-engine.html`](docs/diagrams/grid-engine.html) | How fused points become the foveated 2.5D layers |
 | [`training-workflow.html`](docs/diagrams/training-workflow.html) | Training on Kaggle, early-stop guards, evaluation and model selection |
 | [`track-lifecycle.html`](docs/diagrams/track-lifecycle.html) | How a cluster becomes a track and switches between static and moving |
+
+Two static figures for slides and reports:
+
+| Figure | Built with |
+|---|---|
+| [`docs/figures/model_architecture.png`](docs/figures/model_architecture.png) (+ PDF) — the sparse U-Net in PlotNeuralNet style, with a real input scan and the model's prediction | `python scripts/figures/model_figure.py` (PlotNeuralNet + tectonic) |
+| [`docs/figures/architecture_overview.png`](docs/figures/architecture_overview.png) (+ SVG) — compact one-page overview | `python scripts/figures/render_d2.py` (D2) |
 
 The diagrams are built with the archify skill from the specs in `docs/diagrams/src/`
 (`archify finalize <type> docs/diagrams/src/<name>.json docs/diagrams/<name>.html --repo-root .`).
