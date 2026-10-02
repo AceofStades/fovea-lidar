@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import json
 import struct
+import threading
 import time
 from pathlib import Path
 
@@ -108,6 +109,13 @@ class Session:
 
 def build_app(pipe, fps=10.0):
     app = FastAPI()
+    # one pipeline (one GPU, one fusion history) is shared by every open tab: steps must not overlap
+    step_lock = threading.Lock()
+
+    def locked_step(i):
+        with step_lock:
+            out = pipe.step(i)
+            return out, cell_instances(pipe, out["frame"])
     app.mount("/static", StaticFiles(directory=WEB), name="static")
 
     @app.get("/")
@@ -179,9 +187,8 @@ def build_app(pipe, fps=10.0):
                     continue
                 s.dirty = False
                 t0 = time.perf_counter()
-                out = await loop.run_in_executor(None, pipe.step, s.index)
+                out, (geo, attrs) = await loop.run_in_executor(None, locked_step, s.index)
                 t1 = time.perf_counter()
-                geo, attrs = await loop.run_in_executor(None, cell_instances, pipe, out["frame"])
                 bufs = [("cells_geo", geo), ("cells_attr", attrs)]
                 if s.send_points:
                     pts = out["pts"][:, :3].cpu().numpy()
