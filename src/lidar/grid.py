@@ -59,6 +59,16 @@ class GridConfig:
     step_threshold: float = 0.15          # height jump to a neighbour cell that counts as a curb
 
 
+# Ring ladders. Any ladder works as long as cell-size ratios are integers and every inner edge is a
+# multiple of the next coarser cell, so cells stay exactly nested.
+PROFILES = {
+    # 5 / 10 / 20 / 40 cm: resolution halves at each doubling of range
+    "balanced": GridConfig(),
+    # the problem statement's example: 5 cm within 10 m, coarsening to 50 cm out to 100 m
+    "spec": GridConfig(ratios=(1, 2, 10), half_extents=(10.0, 20.0, 100.0)),
+}
+
+
 class VariableResolutionGrid:
     def __init__(self, cfg: GridConfig = GridConfig(), device="cuda"):
         self.cfg = cfg
