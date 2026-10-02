@@ -14,6 +14,9 @@ the objects and the performance numbers while a recorded drive replays at sensor
 |---|---|
 | ![](docs/img/resolution.png) | ![](docs/img/drivability.png) |
 
+A 70-second walkthrough of the simulator is in [`docs/demo.mp4`](docs/demo.mp4)
+(re-record with `python scripts/record_demo.py` while the simulator is running).
+
 ## What it does
 
 1. **Terrain analysis** — every cell knows its ground height, whether it is drivable road or
