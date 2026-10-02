@@ -34,7 +34,7 @@ A 70-second walkthrough of the simulator is in [`docs/demo.mp4`](docs/demo.mp4)
 ```
 LiDAR scan (x, y, z, remission)            ~120k points, 10 Hz
    │
-   ▼  sparse 3D U-Net (spconv), 5 cm voxels        per-point class + confidence
+   ▼  sparse 3D U-Net (spconv), 10 cm voxels       per-point class + confidence
    │
    ▼  temporal fusion: static points of the last N scans, re-expressed in the current frame
    │  through ego poses; dynamic points only from the current scan (no ghost trails)
@@ -178,8 +178,9 @@ Requirements: Linux, an NVIDIA GPU, [uv](https://docs.astral.sh/uv/). Python 3.1
 
 ```bash
 uv sync
-# SemanticKITTI: fetches only the labelled sequences (00-10, ~46 GB) from the official servers,
-# sequence 08 first, using HTTP range requests on the 80 GB archive
+# SemanticKITTI from the official servers via HTTP range requests on the 80 GB archive:
+# the demo needs only sequence 08 (~8 GB); training needs the labelled sequences 00-10 (~46 GB)
+uv run python scripts/download_semantickitti.py --seqs 08
 uv run python scripts/download_semantickitti.py
 
 # live simulator (ground-truth labels until a checkpoint is given)
@@ -227,18 +228,21 @@ print(cells.nbytes / 1e6, "MB")  # 8.0
 ```
 src/lidar/
   labels.py      SemanticKITTI ids → 19 train classes → 7 map categories, colours
-  data.py        scans, labels, poses, sparse-voxel training dataset
-  models/        sparse 3D U-Net (spconv)
+  data.py        scans, labels, poses, sparse-voxel training dataset, PolarMix
+  models/        sparse 3D U-Net (spconv), width-scaled builder
   train.py       training: AMP, DDP, resume, time-budgeted cosine schedule
   infer.py       GPU voxelisation + fp16 inference
-  grid.py        variable-resolution 2.5D grid engine
+  grid.py        variable-resolution 2.5D grid engine, ring profiles
   objects.py     clustering, tracker, motion cue
+  objeval.py     object detection metrics by distance
   pipeline.py    per-frame pipeline used by the simulator and the benchmark
   bench.py       latency / memory / accuracy-by-distance report
-  sim/server.py  WebSocket simulator backend
+  sim/server.py  WebSocket simulator backend, map snapshot endpoint
   web/           three.js frontend (vendored, works offline)
-scripts/         dataset download, Kaggle launcher, screenshots
-tests/           grid invariants
+models/          trained weights (fp16): final 10 cm model, narrow 5 cm model
+docs/            results JSON, charts, screenshots, demo video
+scripts/         dataset download, Kaggle launcher, weight export, charts, screenshots, demo recorder
+tests/           grid invariants, objects, tracking, motion cue, detection metrics, PolarMix
 ```
 
 ## Dataset
