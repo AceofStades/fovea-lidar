@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FOVEA system architecture",
+    "output": "docs/diagrams/system-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    }
+  },
+  "components": [
+    { "id": "viewer", "type": "external", "label": "Viewer", "sublabel": "judge or operator", "pos": [40, 380], "size": [120, 64] },
+    {
+      "id": "dashboard", "type": "frontend", "label": "three.js dashboard", "sublabel": "web/app.js", "pos": [250, 380], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/web/app.js", "line": 352, "end_line": 367, "label": "WebSocket client" },
+        { "path": "src/lidar/web/app.js", "line": 424, "label": "onFrame render" }
+      ]
+    },
+    {
+      "id": "simServer", "type": "backend", "label": "Simulator server", "sublabel": "FastAPI · uvicorn", "pos": [525, 380], "size": [170, 64],
+      "sources": [
+        { "path": "src/lidar/sim/server.py", "line": 111, "end_line": 122, "label": "lock-serialised step" },
+        { "path": "src/lidar/sim/server.py", "line": 162, "end_line": 256, "label": "WebSocket /ws loop" }
+      ]
+    },
+    {
+      "id": "framePipeline", "type": "backend", "label": "Pipeline.step", "sublabel": "per-frame orchestration", "pos": [840, 380], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/pipeline.py", "line": 92, "end_line": 205, "label": "Pipeline.step" }
+      ]
+    },
+    {
+      "id": "gridEngine", "type": "backend", "label": "Grid engine", "sublabel": "foveated 2.5D rings", "pos": [1160, 380], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/grid.py", "line": 131, "end_line": 174, "label": "project()" }
+      ]
+    },
+    {
+      "id": "segmenter", "type": "backend", "label": "Segmenter", "sublabel": "sparse 3D U-Net, fp16", "pos": [840, 210], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/infer.py", "line": 8, "end_line": 46, "label": "Segmenter" },
+        { "path": "src/lidar/models/spunet.py", "line": 29, "end_line": 68, "label": "SpUNet" }
+      ]
+    },
+    {
+      "id": "tracker", "type": "backend", "label": "Objects + tracker", "sublabel": "boxes · motion cue", "pos": [1160, 210], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/objects.py", "line": 34, "end_line": 61, "label": "detect()" },
+        { "path": "src/lidar/objects.py", "line": 84, "end_line": 122, "label": "MotionCue" },
+        { "path": "src/lidar/objects.py", "line": 124, "end_line": 181, "label": "Tracker" }
+      ]
+    },
+    {
+      "id": "weights", "type": "database", "label": "models/*.pt", "sublabel": "fp16 weights", "pos": [840, 40], "size": [160, 64],
+      "sources": [
+        { "path": "scripts/export_weights.py", "line": 15, "end_line": 23, "label": "fp16 export" },
+        { "path": "src/lidar/infer.py", "line": 9, "end_line": 19, "label": "loaded at start" }
+      ]
+    },
+    {
+      "id": "kaggleTraining", "type": "cloud", "label": "Kaggle training", "sublabel": "lidar.train · DDP", "pos": [1160, 40], "size": [160, 64],
+      "sources": [
+        { "path": "scripts/kaggle_launch.py", "line": 25, "end_line": 80, "label": "kernel runner" },
+        { "path": "src/lidar/train.py", "line": 52, "end_line": 201, "label": "lidar.train" }
+      ]
+    },
+    {
+      "id": "semanticKitti", "type": "database", "label": "SemanticKITTI", "sublabel": "scans · labels · poses", "pos": [840, 550], "size": [160, 64],
+      "sources": [
+        { "path": "src/lidar/data.py", "line": 16, "end_line": 26, "label": "read_scan / read_label" },
+        { "path": "src/lidar/data.py", "line": 193, "end_line": 215, "label": "read_lidar_poses" }
+      ]
+    }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "lidar sim process (GPU)", "wraps": ["simServer", "framePipeline", "segmenter", "tracker", "gridEngine"] },
+    { "kind": "region", "label": "Kaggle cloud, 2× T4", "wraps": ["kaggleTraining"] }
+  ],
+  "connections": [
+    { "id": "open-dashboard", "from": "viewer", "to": "dashboard", "label": "open :8000" },
+    { "id": "ws-commands", "from": "dashboard", "to": "simServer", "label": "WebSocket /ws" },
+    { "id": "frames-to-browser", "from": "simServer", "to": "dashboard", "label": "binary frames, 10 Hz", "variant": "emphasis", "fromSide": "top", "toSide": "top" },
+    { "id": "step-frame", "from": "simServer", "to": "framePipeline", "label": "step(i) under lock", "variant": "emphasis" },
+    { "id": "segment-points", "from": "framePipeline", "to": "segmenter", "label": "points → classes", "variant": "emphasis" },
+    { "id": "load-weights", "from": "segmenter", "to": "weights", "label": "load fp16 weights", "variant": "dashed" },
+    { "id": "export-weights", "from": "kaggleTraining", "to": "weights", "label": "export best.pt (fp16)", "variant": "dashed" },
+    { "id": "track-objects", "from": "framePipeline", "to": "tracker", "label": "detect + track", "fromSide": "right", "toSide": "left" },
+    { "id": "project-grid", "from": "framePipeline", "to": "gridEngine", "label": "project fused points", "variant": "emphasis" },
+    { "id": "read-dataset", "from": "framePipeline", "to": "semanticKitti", "label": "read scan, labels, pose" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Live path", "items": ["The server runs Pipeline.step in a worker thread; one lock serialises open tabs", "Each frame: segment, fuse 10 scans, detect and track, project into the grid (31 ms median)", "Frames stream to the browser as one binary WebSocket message"] },
+    { "dot": "emerald", "title": "Data and weights", "items": ["Scans, labels and poses come from data/semantickitti (sequence 08 for the demo)", "Weights are trained on Kaggle and exported to fp16 files in models/"] },
+    { "dot": "amber", "title": "Offline evaluation", "items": ["lidar bench replays sequence 08 through the same Pipeline class", "Results land in docs/results/*.json; scripts/make_charts.py draws the charts"] }
+  ]
+}
