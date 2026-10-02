@@ -92,28 +92,77 @@ gap.
 
 ## Results
 
-Measured on SemanticKITTI sequence 08 (the standard validation sequence, 4071 scans) on an
-RTX 5060 Ti. Full numbers: `docs/results/results.json` (regenerate with `python -m lidar.bench`).
+Everything below is measured on **SemanticKITTI sequence 08** — the standard validation sequence,
+4071 scans never seen in training — on one RTX 5060 Ti, running the complete pipeline frame by frame
+(segmentation → temporal fusion of 10 scans → objects and tracking → 2.5D grid). Raw numbers:
+`docs/results/*.json`; regenerate with `uv run lidar bench`.
 
-**Memory, same 200 m × 200 m coverage**
+### Headline (final model: sparse U-Net, 10 cm voxels, PolarMix)
 
-| Representation | Cells | Size |
+| | |
+|---|---|
+| End-to-end latency | **30 ms median, 34 ms p95 → 33 FPS** (sensor delivers 10 Hz) |
+| Point segmentation, 19 classes | **67.7 % mIoU**, 91.8 % accuracy |
+| Map categories (drivable, terrain, vegetation, static obstacle, vehicle, pedestrian) | **89.2 % mIoU** |
+| Map cells vs. a map built from ground-truth labels | 92.9 % cells agree |
+| Vehicle detection (instances, IoU ≥ 0.5) | 83.6 % recall, 87.6 % precision |
+| Pedestrian / cyclist detection | 68.3 % recall, 72.2 % precision |
+| Map memory vs. uniform 5 cm 2.5D / dense 5 cm 3D | **22× / 319× smaller** |
+
+![Latency by stage](docs/img/chart_latency.png)
+
+### Accuracy across distance
+
+SemanticKITTI labels points out to about 50 m (97 % of points labelled within 50 m, ~2 % beyond), so
+accuracy is reported in 10 m bands up to 50 m; the map itself extends to 100 m.
+
+| Distance | 0–10 m | 10–20 m | 20–30 m | 30–40 m | 40–50 m |
+|---|---|---|---|---|---|
+| Map-category mIoU | 90.6 % | 88.6 % | 85.4 % | 80.2 % | 73.0 % |
+| Vehicles: recall / precision | 90 / 91 % | 88 / 89 % | 87 / 87 % | 76 / 87 % | 66 / 81 % |
+| Pedestrians: recall / precision | 70 / 86 % | 69 / 78 % | 68 / 75 % | 68 / 61 % | 64 / 54 % |
+
+![Accuracy across distance](docs/img/chart_accuracy_distance.png)
+
+### Memory
+
+| Representation (same 200 m × 200 m coverage) | Cells | Size |
 |---|---|---|
-| **FOVEA variable-resolution 2.5D** | 0.73 M | **8.0 MB** |
-| Uniform 5 cm 2.5D grid | 16 M | 176 MB (22× more) |
+| **FOVEA variable-resolution 2.5D** (11 B/cell) | 0.73 M | **8.0 MB** |
+| Uniform 5 cm 2.5D grid (same cell record) | 16 M | 176 MB (22× more) |
 | Dense 5 cm 3D voxels, 8 m tall, 1 byte/voxel | 2.56 B | 2.56 GB (319× more) |
 
-**Latency** (mapping stages, per frame, fusion of 10 scans ≈ 1.1 M points):
+Projecting one scan into all layers takes 5.8 ms in the variable-resolution grid against 38.4 ms for
+a uniform 5 cm grid of the same extent (6.6× faster).
 
-| Stage | p50 |
-|---|---|
-| Grid projection, all layers | 7.1 ms |
-| Objects + tracking | 2.6 ms |
-| Temporal fusion | 1.0 ms |
-| Projecting one scan: FOVEA vs uniform 5 cm grid | 5.9 ms vs 39.4 ms |
+![Memory](docs/img/chart_memory.png)
 
-Segmentation accuracy, accuracy by distance and end-to-end FPS with the network are filled in by
-`python -m lidar.bench --checkpoint …` once training finishes (see `docs/results`).
+### Trained variants
+
+All five were trained on Kaggle (2× T4, ~9–10.5 h each, sequences 00–07, 09, 10) and evaluated
+with the same full pipeline:
+
+| Model | Voxel | Params | mIoU (19 cls) | Network | End-to-end |
+|---|---|---|---|---|---|
+| **SpUNet + PolarMix** (final) | 10 cm | 23 M | **67.7 %** | 14.7 ms | 30 ms / 33 FPS |
+| SpUNet + PolarMix | 5 cm | 23 M | 67.2 % | 20.4 ms | 38 ms / 27 FPS |
+| SpUNet narrow + PolarMix | 5 cm | 5.8 M | 66.9 % | 12.4 ms | 28 ms / 36 FPS |
+| SpUNet | 5 cm | 23 M | 66.0 % | 20.6 ms | 36 ms / 28 FPS |
+| SpUNet | 10 cm | 23 M | 61.5 % | 14.4 ms | 29 ms / 34 FPS |
+
+PolarMix (scene-sector swap + rotated pasting of rare classes) adds 1.2 points at 5 cm and 6.2
+points at 10 cm. For reference, published sparse-convolution baselines on this split are in the
+61–66 % range (MinkUNet, SPVCNN, Cylinder3D).
+
+![Accuracy vs latency](docs/img/chart_tradeoff.png)
+
+### Moving objects
+
+Motion comes from tracking, not from a dedicated network: a scan-to-scan voxel-overlap test (a
+parked car re-occupies its own voxels from half a second ago, a moving one does not), gated on the
+area having been observed, plus a robust track velocity for fast objects. Against SemanticKITTI's
+per-point moving labels: 62 % precision, 47 % recall at point level (labelled "moving" includes cars
+creeping at < 1 m/s).
 
 ## Running it
 
@@ -127,7 +176,7 @@ uv sync
 uv run python scripts/download_semantickitti.py
 
 # live simulator (ground-truth labels until a checkpoint is given)
-uv run lidar sim --seq 08 [--checkpoint runs/spunet-5cm/best.pt]
+uv run lidar sim --seq 08 --checkpoint models/spunet-10cm-mix.pt
 # open http://127.0.0.1:8000   (deep links: ?frame=880&view=top&color=3)
 
 # training (single GPU / multi GPU)
