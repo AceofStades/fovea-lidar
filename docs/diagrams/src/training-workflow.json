@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Training and model selection on Kaggle",
+    "output": "docs/diagrams/training-workflow.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": { "label": "compute step" },
+        "database": { "label": "artifact" },
+        "external": { "label": "early stop" }
+      }
+    }
+  },
+  "lanes": [
+    { "id": "stopsEarly", "label": "Stops early", "variant": "exception" },
+    { "id": "kaggleKernel", "label": "Kaggle kernel, 2× T4" },
+    { "id": "localMachine", "label": "Local machine" },
+    { "id": "repository", "label": "Repository" }
+  ],
+  "mainPath": ["launcher", "kernelSetup", "datasetCheck", "trainLoop", "validateEpoch", "fullBench", "adoptWeights"],
+  "nodes": [
+    {
+      "id": "launcher", "lane": "localMachine", "col": 0, "type": "backend", "label": "kaggle_launch.py", "sublabel": "code tarball, team account", "width": 150,
+      "sources": [
+        { "path": "scripts/kaggle_launch.py", "line": 101, "end_line": 107, "label": "code tarball" },
+        { "path": "scripts/kaggle_launch.py", "line": 149, "end_line": 166, "label": "kernels push" }
+      ]
+    },
+    {
+      "id": "kernelSetup", "lane": "kaggleKernel", "col": 1, "type": "backend", "label": "Kernel setup", "sublabel": "spconv + GPU smoke test", "width": 150,
+      "sources": [{ "path": "scripts/kaggle_launch.py", "line": 31, "end_line": 52, "label": "JIT off, wheel loop" }]
+    },
+    {
+      "id": "datasetCheck", "lane": "kaggleKernel", "col": 2, "type": "backend", "label": "Dataset check", "sublabel": "count labelled scans", "width": 150,
+      "sources": [{ "path": "scripts/kaggle_launch.py", "line": 63, "end_line": 69, "label": "scan counts" }]
+    },
+    {
+      "id": "trainLoop", "lane": "kaggleKernel", "col": 3, "type": "backend", "label": "lidar.train, DDP", "sublabel": "PolarMix, CE + Lovász", "width": 150,
+      "sources": [
+        { "path": "src/lidar/train.py", "line": 89, "end_line": 117, "label": "data, DDP, schedule" },
+        { "path": "src/lidar/train.py", "line": 145, "end_line": 177, "label": "training loop" }
+      ]
+    },
+    {
+      "id": "validateEpoch", "lane": "kaggleKernel", "col": 4, "type": "backend", "label": "Validate each epoch", "sublabel": "keeps best.pt", "width": 150,
+      "sources": [{ "path": "src/lidar/train.py", "line": 178, "end_line": 189, "label": "evaluate + best.pt" }]
+    },
+    {
+      "id": "fullBench", "lane": "localMachine", "col": 5, "type": "backend", "label": "Fetch + full bench", "sublabel": "4,071 scans, full pipeline", "width": 150,
+      "sources": [
+        { "path": "scripts/kaggle_launch.py", "line": 144, "end_line": 147, "label": "kernels output" },
+        { "path": "src/lidar/bench.py", "line": 32, "end_line": 117, "label": "lidar bench" }
+      ]
+    },
+    {
+      "id": "adoptWeights", "lane": "repository", "col": 5, "type": "database", "label": "models/*.pt", "sublabel": "fp16 export of the best", "width": 150,
+      "sources": [{ "path": "scripts/export_weights.py", "line": 15, "end_line": 23, "label": "fp16 export" }]
+    },
+    {
+      "id": "spconvFail", "lane": "stopsEarly", "col": 1, "type": "external", "label": "No working spconv", "sublabel": "cu126, cu124, cu121 tried", "width": 150,
+      "sources": [{ "path": "scripts/kaggle_launch.py", "line": 45, "end_line": 52, "label": "wheel fallback" }]
+    },
+    {
+      "id": "dataFail", "lane": "stopsEarly", "col": 2, "type": "external", "label": "Dataset not found", "sublabel": "exit before training", "width": 150,
+      "sources": [{ "path": "scripts/kaggle_launch.py", "line": 66, "end_line": 69, "label": "exit" }]
+    }
+  ],
+  "edges": [
+    { "id": "push-kernel", "from": "launcher", "to": "kernelSetup", "label": "kernels push", "variant": "emphasis" },
+    { "id": "setup-ok", "from": "kernelSetup", "to": "datasetCheck", "variant": "emphasis" },
+    { "id": "start-torchrun", "from": "datasetCheck", "to": "trainLoop", "label": "torchrun", "variant": "emphasis" },
+    { "id": "epoch-done", "from": "trainLoop", "to": "validateEpoch", "variant": "emphasis" },
+    { "id": "fetch-output", "from": "validateEpoch", "to": "fullBench", "label": "best.pt", "variant": "emphasis" },
+    { "id": "export-best", "from": "fullBench", "to": "adoptWeights", "label": "winner", "variant": "emphasis" },
+    { "id": "spconv-broken", "from": "kernelSetup", "to": "spconvFail", "label": "all fail", "variant": "security", "role": "error" },
+    { "id": "no-scans", "from": "datasetCheck", "to": "dataFail", "label": "0 scans", "variant": "security", "role": "error" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Kernel", "items": ["The source tree travels inside the kernel as a base64 tarball", "spconv's JIT build is disabled and a sparse conv is smoke-tested on the GPU first", "A missing dataset stops the run before any GPU hour is spent"] },
+    { "dot": "emerald", "title": "Training", "items": ["torchrun runs one process per T4 with SyncBatchNorm", "The cosine schedule follows iterations or the wall-clock budget, whichever is further", "--resume-from restores last.pt so a run can continue in a new 12 h session"] },
+    { "dot": "amber", "title": "Selection", "items": ["Five variants trained in parallel on team accounts", "Each was re-scored through the full pipeline on all 4,071 validation scans", "The winner, 10 cm + PolarMix at 67.7 % mIoU, is exported to fp16"] }
+  ]
+}
