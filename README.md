@@ -195,11 +195,28 @@ uv run pytest -q
 Training on Kaggle (2× T4, data from the public SemanticKITTI copy, code embedded in the kernel):
 `python scripts/kaggle_launch.py --account <name> --name spunet-5cm -- --voxel 0.05 --max-hours 10.5`.
 
-### Simulator controls
+### Simulator
 
-`Space` play/pause · `←/→` step · `1–4` map colour (semantic, drivability, height, resolution) ·
-views: chase, top-down, orbit · point colours: prediction, ground truth, errors · temporal fusion
-slider · source switch between the network and ground-truth labels.
+* **Views**: chase, top-down, orbit; a top-down mini-map inset keeps the foveated rings in sight.
+* **Map colour**: semantic category, drivability, height above road, resolution ring (`1`–`4`).
+* **Cell inspector**: hover any cell to read its record — ring and cell size, category, drivability,
+  ground height (observed or filled), step to neighbours, obstacle top, clearance, fused point count.
+* **Points**: prediction, ground truth, or errors only (misclassified points in magenta).
+* **Live panels**: per-stage latency with the 10 Hz budget line, memory against uniform maps,
+  observed cells per ring, session accuracy by distance and category, object recall/precision by
+  distance, moving-object scores, and the list of tracked objects.
+* **Controls**: `Space` play/pause · `←/→` step · scrubber · replay speed · temporal-fusion slider ·
+  switch between network and ground-truth labels · `H` explains the pipeline.
+* **Download this map**: the live map as stored — one 11-byte record per cell plus the ring geometry:
+
+```python
+import numpy as np
+m = np.load("fovea-map-seq08-frame0880.npz")
+cells = m["cells"]              # count, category, traversability, ground_z, obstacle_top, clearance, moving
+k = 0                           # ring 0: 5 cm cells, |x|,|y| < 10 m
+ring0 = cells[m["offset"][k]:m["offset"][k + 1]].reshape(m["width"][k], m["width"][k])   # [row = y, col = x]
+print(cells.nbytes / 1e6, "MB")  # 8.0
+```
 
 ## Repository layout
 
