@@ -79,7 +79,9 @@ def main():
         torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
     device = torch.device("cuda")
     main_proc = rank == 0
-    t_start = time.time()
+    # monotonic clock: does not advance while the machine is suspended, so a laptop going to sleep
+    # cannot consume the time budget (and collapse the schedule) without training
+    t_start = time.monotonic()
     os.makedirs(args.out, exist_ok=True)
 
     torch.manual_seed(args.seed + rank)
@@ -143,10 +145,10 @@ def main():
                 print(f"epoch {epoch}: training set now {len(train_set)} scans", flush=True)
         if sampler:
             sampler.set_epoch(epoch)
-        t0 = time.time()
+        t0 = time.monotonic()
         for b in train_loader:
             if it % 10 == 0:
-                hours.fill_(hours_before + (time.time() - t_start) / 3600)
+                hours.fill_(hours_before + (time.monotonic() - t_start) / 3600)
                 if ddp:
                     dist.broadcast(hours, 0)
             progress = max(it / total, float(hours) / budget)
@@ -164,8 +166,8 @@ def main():
             scaler.update()
             it += 1
             if main_proc and it % args.log_every == 0:
-                rate = args.log_every / (time.time() - t0)
-                t0 = time.time()
+                rate = args.log_every / (time.monotonic() - t0)
+                t0 = time.monotonic()
                 rec = {"iter": it, "epoch": epoch, "loss": loss.item(), "ce": ce.item(), "lovasz": lv.item(),
                        "lr": opt.param_groups[0]["lr"], "it_s": rate, "hours": float(hours), "progress": progress}
                 print(json.dumps(rec), flush=True)
@@ -190,7 +192,7 @@ def main():
         if stop:
             break
     if main_proc:
-        print(f"done: best val mIoU {best:.4f}, {(time.time() - t_start) / 3600:.2f} h", flush=True)
+        print(f"done: best val mIoU {best:.4f}, {(time.monotonic() - t_start) / 3600:.2f} h", flush=True)
     if ddp:
         dist.destroy_process_group()
 
