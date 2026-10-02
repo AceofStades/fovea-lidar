@@ -107,31 +107,38 @@ def latency_chart(runs, out):
 
 
 def accuracy_by_distance_chart(runs, out):
-    runs = [(n, r) for n, r in runs if "segmentation" in r]
+    """Final model only: per-category segmentation IoU and object recall/precision vs distance."""
+    runs = [(n, r) for n, r in runs if "category_iou_by_distance" in r.get("segmentation", {})]
     if not runs:
         return
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.8), sharey=False)
-    bins = list(runs[0][1]["segmentation"]["by_distance"].keys())
-    x = range(len(bins))
-    for k, (name, r) in enumerate(runs[:4]):
-        seg = [r["segmentation"]["by_distance"][b]["miou"] * 100 for b in bins]
-        axes[0].plot(list(x), seg, color=SERIES[k], linewidth=2, marker="o", markersize=7, label=name,
-                     markeredgecolor=SURFACE, markeredgewidth=2)
-        axes[0].annotate(f"{seg[-1]:.0f}", (len(bins) - 1, seg[-1]), xytext=(8, 0), textcoords="offset points",
-                         va="center", color=INK_2, fontsize=9.5)
-        veh = [r["objects"]["vehicle"]["by_distance"][b]["recall"] for b in bins]
-        pts = [(i, v * 100) for i, v in enumerate(veh) if v is not None]
-        axes[1].plot([p[0] for p in pts], [p[1] for p in pts], color=SERIES[k], linewidth=2, marker="o", markersize=7,
-                     label=name, markeredgecolor=SURFACE, markeredgewidth=2)
-    axes[0].set_title("Point segmentation, map categories (mIoU %)")
-    axes[1].set_title("Vehicle detection recall (%)")
+    name, r = runs[0]
+    by = r["segmentation"]["category_iou_by_distance"]
+    bins = list(by.keys())
+    x = list(range(len(bins)))
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+    cats = [c for c in by[bins[0]] if any(by[b][c] is not None for b in bins)]
+    for k, c in enumerate(cats):
+        ys = [by[b][c] * 100 if by[b][c] is not None else None for b in bins]
+        pts = [(i, v) for i, v in zip(x, ys) if v is not None]
+        axes[0].plot([p[0] for p in pts], [p[1] for p in pts], color=SERIES[k], linewidth=2, marker="o",
+                     markersize=7, markeredgecolor=SURFACE, markeredgewidth=2, label=c)
+    axes[0].set_title("Segmentation IoU per map category (%)")
+    axes[0].legend(frameon=False, fontsize=9.5, loc="lower left", ncol=2, handlelength=2.8)
+    for k, (cls, label) in enumerate((("vehicle", "vehicles"), ("pedestrian", "pedestrians"))):
+        rows = r["objects"][cls]["by_distance"]
+        for metric, style_ in (("recall", "-"), ("precision", (0, (4, 3)))):
+            pts = [(i, rows[b][metric] * 100) for i, b in enumerate(bins) if rows.get(b, {}).get(metric) is not None]
+            axes[1].plot([p[0] for p in pts], [p[1] for p in pts], color=SERIES[k], linewidth=2, linestyle=style_,
+                         marker="o", markersize=7, markeredgecolor=SURFACE, markeredgewidth=2, label=f"{label} {metric}")
+    axes[1].set_title("Object detection vs labelled instances (%)")
+    axes[1].legend(frameon=False, fontsize=9.5, loc="lower left", ncol=2, handlelength=3.2)
     for ax in axes:
-        ax.set_xticks(list(x), [b.replace("m", " m") for b in bins])
+        ax.set_xticks(x, [b.replace("m", " m") for b in bins])
         ax.set_xlabel("distance from sensor")
         ax.set_ylim(0, 100)
         style(ax, "y")
-    if len(runs) > 1:
-        axes[0].legend(frameon=False, fontsize=9.5, loc="lower left")
+    fig.suptitle(f"Accuracy across distance · {name} · SemanticKITTI sequence 08", x=0.01, ha="left",
+                 fontsize=10.5, color=INK_2)
     fig.tight_layout()
     fig.savefig(out / "chart_accuracy_distance.png", dpi=160)
     plt.close(fig)
