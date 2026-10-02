@@ -41,8 +41,14 @@ def style(ax, grid_axis="y"):
     ax.tick_params(length=0)
 
 
+LABELS = {
+    "spunet-10cm-mix": "10 cm + PolarMix", "spunet-5cm-mix": "5 cm + PolarMix",
+    "spunet-5cm-narrow-mix": "5 cm narrow + PolarMix", "spunet-5cm": "5 cm", "spunet-10cm": "10 cm",
+}
+
+
 def load(paths):
-    return [(Path(p).stem, json.loads(Path(p).read_text())) for p in paths]
+    return [(LABELS.get(Path(p).stem, Path(p).stem), json.loads(Path(p).read_text())) for p in paths]
 
 
 def memory_chart(res, out):
