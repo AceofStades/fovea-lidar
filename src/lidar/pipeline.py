@@ -41,7 +41,10 @@ class Pipeline:
         self.files = scan_files(root, [seq], require_labels=False)
         if not self.files:
             raise SystemExit(f"no scans found for sequence {seq} under {root}")
-        self.poses = read_lidar_poses(root, seq)[:len(self.files)]
+        # poses are indexed by scan number, not by list position: a missing scan file must not shift
+        # every later pose by one frame
+        frame_ids = [int(Path(scan).stem) for scan, _ in self.files]
+        self.poses = read_lidar_poses(root, seq)[frame_ids]
         self.grid = VariableResolutionGrid(grid_cfg, device)
         self.segmenter = None
         if checkpoint:
