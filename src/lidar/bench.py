@@ -103,6 +103,9 @@ def main():
             "miou_19": s["miou_19"], "accuracy": s["acc"],
             "per_class_iou": dict(zip(TRAIN_NAMES, [None if np.isnan(v) else float(v) for v in pipe.iou.iou()])),
             "category_iou": s["category_iou"], "by_distance": s["by_distance"],
+            "category_iou_by_distance": {
+                f"{lo}-{hi}m": {n: (None if np.isnan(v) else float(v)) for n, v in zip(CATEGORY_NAMES, m.iou()) if n != "unknown"}
+                for lo, hi, m in zip(pipe.iou_dist.bins[:-1], pipe.iou_dist.bins[1:], pipe.iou_dist.meters)},
         }
         res["moving_objects"] = pipe.motion_summary()
         res["map_cells_vs_gt_map"] = {
