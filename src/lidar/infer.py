@@ -16,7 +16,8 @@ class Segmenter:
         model.load_state_dict(state)
         # spconv on Blackwell: fp16 inference works with a half() model, not with autocast
         self.model = model.to(self.device).eval().half()
-        self.val_miou = ck.get("val_miou", ck.get("best"))
+        # full sequence-08 mIoU when the weights were exported with benchmark results
+        self.val_miou = ck.get("seq08_miou") or ck.get("val_miou", ck.get("best"))
 
     @torch.no_grad()
     def __call__(self, pts):
