@@ -71,6 +71,14 @@ every scan; a 5 cm cell at 5 m sees the curb that matters for safety.
   conserved, boundary points are assigned consistently, and sum-pooling the 5 cm level reproduces a
   directly-built 40 cm grid bit for bit.
 
+**World-anchored lattice (scrolling rings).** The grid's axes are fixed to the world and its origin
+snaps to whole 40 cm steps as the vehicle moves. Every ring's cell size divides 40 cm, so every cell
+boundary stays put in the world while the rings follow the vehicle: a wall falls into the same cells
+frame after frame instead of being re-binned (and shimmering) whenever the vehicle turns. Measured on
+sequence 08: 74 % of occupied 40 cm obstacle cells sit at exactly the same world position in
+consecutive frames with the world anchor, 0 % with an ego-aligned grid. Fused points are kept in world
+coordinates and re-binned each frame (7 ms for 1.1 M points), so no cell is ever resampled.
+
 **Safety-first pooling.** A coarse cell with 30 road points and 2 pole points is an obstacle cell, not
 a road cell: obstacle-like categories claim a cell with ≥ 2 points, so thin obstacles are never
 averaged away at long range. Majority vote is used only among ground categories.
