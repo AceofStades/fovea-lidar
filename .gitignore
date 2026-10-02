@@ -8,3 +8,4 @@ checkpoints/
 kaggle_build/
 # archify run receipts (machine-specific evidence); the HTML and docs/diagrams/src/*.json are tracked
 docs/diagrams/*.json
+docs/figures/*.log
