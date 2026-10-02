@@ -20,7 +20,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from ..grid import OVERHANG, TRAVERSABILITY_COLORS, TRAVERSABILITY_NAMES, GridConfig
+from ..grid import OVERHANG, PROFILES, TRAVERSABILITY_COLORS, TRAVERSABILITY_NAMES
 from ..labels import CATEGORY_NAMES, CATEGORY_COLORS, TRAIN_TO_CATEGORY
 from ..pipeline import Pipeline
 
@@ -267,12 +267,14 @@ def main():
     ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--accumulate", type=int, default=10)
     ap.add_argument("--fps", type=float, default=10.0)
+    ap.add_argument("--rings", choices=sorted(PROFILES), default="balanced",
+                    help="ring ladder: balanced = 5/10/20/40 cm, spec = 5/10/50 cm as in the problem statement")
     ap.add_argument("--anchor", choices=["world", "ego"], default="world",
                     help="world: cell lattice fixed in the world (scrolling rings); ego: grid turns with the vehicle")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
-    pipe = Pipeline(args.root, args.seq, args.checkpoint, GridConfig(), args.accumulate, anchor=args.anchor)
+    pipe = Pipeline(args.root, args.seq, args.checkpoint, PROFILES[args.rings], args.accumulate, anchor=args.anchor)
     # warm up before accepting viewers: the first sparse-conv call tunes GPU kernels (~15 s)
     t = time.perf_counter()
     for i in range(3):
