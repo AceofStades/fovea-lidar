@@ -107,10 +107,10 @@ Everything below is measured on **SemanticKITTI sequence 08** — the standard v
 
 | | |
 |---|---|
-| End-to-end latency | **30 ms median, 34 ms p95 → 33 FPS** (sensor delivers 10 Hz) |
+| End-to-end latency | **31 ms median, 35 ms p95 → 32 FPS** (sensor delivers 10 Hz) |
 | Point segmentation, 19 classes | **67.7 % mIoU**, 91.8 % accuracy |
 | Map categories (drivable, terrain, vegetation, static obstacle, vehicle, pedestrian) | **89.2 % mIoU** |
-| Map cells vs. a map built from ground-truth labels | 92.9 % cells agree |
+| Map cells vs. a map built from ground-truth labels | 93.1 % cells agree |
 | Vehicle detection (instances, IoU ≥ 0.5) | 83.6 % recall, 87.6 % precision |
 | Pedestrian / cyclist detection | 68.3 % recall, 72.2 % precision |
 | Map memory vs. uniform 5 cm 2.5D / dense 5 cm 3D | **22× / 319× smaller** |
@@ -139,7 +139,7 @@ accuracy is reported in 10 m bands up to 50 m; the map itself extends to 100 m.
 | Uniform 5 cm 2.5D grid (same cell record) | 16 M | 176 MB (22× / 33× more) |
 | Dense 5 cm 3D voxels, 8 m tall, 1 byte/voxel | 2.56 B | 2.56 GB (319× more) |
 
-Projecting one scan into all layers takes 5.8 ms in the variable-resolution grid against 38.4 ms for
+Projecting one scan into all layers takes 6.0 ms in the variable-resolution grid against 39.7 ms for
 a uniform 5 cm grid of the same extent (6.6× faster).
 
 ![Memory](docs/img/chart_memory.png)
@@ -151,11 +151,11 @@ with the same full pipeline:
 
 | Model | Voxel | Params | mIoU (19 cls) | Network | End-to-end |
 |---|---|---|---|---|---|
-| **SpUNet + PolarMix** (final) | 10 cm | 23 M | **67.7 %** | 14.7 ms | 30 ms / 33 FPS |
-| SpUNet + PolarMix | 5 cm | 23 M | 67.2 % | 20.4 ms | 38 ms / 27 FPS |
-| SpUNet narrow + PolarMix | 5 cm | 5.8 M | 66.9 % | 12.4 ms | 28 ms / 36 FPS |
-| SpUNet | 5 cm | 23 M | 66.0 % | 20.6 ms | 36 ms / 28 FPS |
-| SpUNet | 10 cm | 23 M | 61.5 % | 14.4 ms | 29 ms / 34 FPS |
+| **SpUNet + PolarMix** (final) | 10 cm | 23 M | **67.7 %** | 15.0 ms | 31 ms / 32 FPS |
+| SpUNet + PolarMix | 5 cm | 23 M | 67.2 % | 20.6 ms | 36 ms / 28 FPS |
+| SpUNet narrow + PolarMix | 5 cm | 5.8 M | 66.9 % | 12.8 ms | 28 ms / 36 FPS |
+| SpUNet | 5 cm | 23 M | 66.0 % | 21.2 ms | 37 ms / 27 FPS |
+| SpUNet | 10 cm | 23 M | 61.5 % | 14.6 ms | 30 ms / 33 FPS |
 
 PolarMix (scene-sector swap + rotated pasting of rare classes) adds 1.2 points at 5 cm and 6.2
 points at 10 cm. For reference, published sparse-convolution baselines on this split are in the
@@ -168,7 +168,7 @@ points at 10 cm. For reference, published sparse-convolution baselines on this s
 Motion comes from tracking, not from a dedicated network: a scan-to-scan voxel-overlap test (a
 parked car re-occupies its own voxels from half a second ago, a moving one does not), gated on the
 area having been observed, plus a robust track velocity for fast objects. Against SemanticKITTI's
-per-point moving labels: 62 % precision, 47 % recall at point level (labelled "moving" includes cars
+per-point moving labels: 64 % precision, 46 % recall at point level (labelled "moving" includes cars
 creeping at < 1 m/s).
 
 ## Running it
