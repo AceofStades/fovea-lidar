@@ -3,7 +3,9 @@ import numpy as np
 import torch
 
 from lidar.data import read_label, read_scan, scan_files
-from lidar.grid import GridConfig, VariableResolutionGrid, _sum_pool
+import pytest
+
+from lidar.grid import PROFILES, GridConfig, VariableResolutionGrid, _sum_pool
 from lidar.labels import train_to_category
 
 dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -16,9 +18,10 @@ def _frame():
     return pts, train_to_category(train), moving
 
 
-def test_every_in_range_point_lands_in_exactly_one_cell():
+@pytest.mark.parametrize("profile", sorted(PROFILES))
+def test_every_in_range_point_lands_in_exactly_one_cell(profile):
     pts, cat, moving = _frame()
-    g = VariableResolutionGrid(GridConfig(), dev)
+    g = VariableResolutionGrid(PROFILES[profile], dev)
     f = g.project(pts[:, :3], cat, moving)
     in_range = (np.abs(pts[:, :2]).max(1) < g.cfg.half_extents[-1]) & (pts[:, 2] >= -5) & (pts[:, 2] <= 5)
     assert f.num_points == in_range.sum()
@@ -47,3 +50,15 @@ def test_coarse_cells_are_exact_unions_of_fine_cells():
     cf = fine.project(pts[near, :3], cat[near]).level("count", 0).float()
     cc = coarse.project(pts[near, :3], cat[near]).level("count", 0).float()
     assert torch.equal(_sum_pool(cf, 8), cc)
+
+
+def test_spec_profile_coarsens_to_50cm_at_100m():
+    g = VariableResolutionGrid(PROFILES["spec"], dev)
+    assert [round(c, 3) for c in g.cell_sizes] == [0.05, 0.1, 0.5]
+    flat, level = g.cell_index(torch.tensor([[5.0, 0.0], [15.0, 0.0], [99.0, 0.0]], device=dev))
+    assert level.tolist() == [0, 1, 2]
+
+
+def test_misaligned_ladder_is_rejected():
+    with pytest.raises(ValueError):
+        VariableResolutionGrid(GridConfig(ratios=(1, 2, 5), half_extents=(10.0, 20.0, 100.0)), dev)  # 10 cm -> 25 cm
