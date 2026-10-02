@@ -1,0 +1,274 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Object track lifecycle: static or moving",
+    "output": "docs/diagrams/track-lifecycle.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "start": {
+          "label": "detection"
+        },
+        "active": {
+          "label": "young track"
+        },
+        "neutral": {
+          "label": "static"
+        },
+        "success": {
+          "label": "moving"
+        },
+        "waiting": {
+          "label": "evidence paused"
+        },
+        "failure": {
+          "label": "removed"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Track states"
+    },
+    {
+      "id": "waiting",
+      "label": "Evidence on hold"
+    },
+    {
+      "id": "terminal",
+      "label": "Exits"
+    }
+  ],
+  "states": [
+    {
+      "id": "cluster",
+      "type": "start",
+      "label": "Cluster",
+      "sublabel": "plausible, confident",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "sources": [
+        {
+          "path": "src/lidar/pipeline.py",
+          "line": 150,
+          "end_line": 154,
+          "label": "confidence filter"
+        },
+        {
+          "path": "src/lidar/objects.py",
+          "line": 34,
+          "end_line": 61,
+          "label": "detect()"
+        }
+      ]
+    },
+    {
+      "id": "newTrack",
+      "type": "active",
+      "label": "New track",
+      "sublabel": "no match within 2.5 m",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 165,
+          "end_line": 169,
+          "label": "new track"
+        }
+      ]
+    },
+    {
+      "id": "staticTrack",
+      "type": "neutral",
+      "label": "Static",
+      "sublabel": "parked or stopped",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 171,
+          "end_line": 180,
+          "label": "moving decision"
+        }
+      ]
+    },
+    {
+      "id": "movingTrack",
+      "type": "success",
+      "label": "Moving",
+      "sublabel": "tinted in the map",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 171,
+          "end_line": 180,
+          "label": "moving decision"
+        },
+        {
+          "path": "src/lidar/pipeline.py",
+          "line": 166,
+          "end_line": 172,
+          "label": "moving mask"
+        }
+      ]
+    },
+    {
+      "id": "onHold",
+      "type": "waiting",
+      "label": "Evidence on hold",
+      "sublabel": "area unseen 0.5 s ago",
+      "lane": "waiting",
+      "col": 2,
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 174,
+          "end_line": 176,
+          "label": "seen gate"
+        },
+        {
+          "path": "src/lidar/objects.py",
+          "line": 104,
+          "end_line": 117,
+          "label": "MotionCue.evaluate"
+        }
+      ]
+    },
+    {
+      "id": "rejected",
+      "type": "failure",
+      "label": "Rejected",
+      "sublabel": "too few points, odd shape",
+      "lane": "terminal",
+      "col": 0,
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 28,
+          "end_line": 31,
+          "label": "plausible()"
+        }
+      ]
+    },
+    {
+      "id": "dropped",
+      "type": "failure",
+      "label": "Dropped",
+      "sublabel": "unmatched this frame",
+      "lane": "terminal",
+      "col": 2,
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 155,
+          "end_line": 170,
+          "label": "association"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "start-track",
+      "from": "cluster",
+      "to": "newTrack",
+      "label": "no nearby track"
+    },
+    {
+      "id": "first-match",
+      "from": "newTrack",
+      "to": "staticTrack",
+      "label": "matched again"
+    },
+    {
+      "id": "starts-moving",
+      "from": "staticTrack",
+      "to": "movingTrack",
+      "label": "left its voxels",
+      "variant": "emphasis"
+    },
+    {
+      "id": "stops-moving",
+      "from": "movingTrack",
+      "to": "staticTrack",
+      "label": "back on voxels",
+      "variant": "dashed"
+    },
+    {
+      "id": "evidence-paused",
+      "from": "staticTrack",
+      "to": "onHold",
+      "label": "area unseen",
+      "variant": "dashed"
+    },
+    {
+      "id": "evidence-resumed",
+      "from": "onHold",
+      "to": "staticTrack",
+      "label": "seen again"
+    },
+    {
+      "id": "reject-cluster",
+      "from": "cluster",
+      "to": "rejected",
+      "variant": "security"
+    },
+    {
+      "id": "drop-static",
+      "from": "staticTrack",
+      "to": "dropped",
+      "variant": "security"
+    },
+    {
+      "id": "drop-moving",
+      "from": "movingTrack",
+      "to": "dropped",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Becoming a track",
+      "items": [
+        "Only confident vehicle and pedestrian points are clustered",
+        "A box needs enough points and a plausible size for its class",
+        "A cluster within 2.5 m of a same-class track continues it"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Static or moving",
+      "items": [
+        "Moving when the object no longer overlaps its own voxels from 0.5 s ago (smoothed evidence above 0.5)",
+        "Or when its least-squares speed tops 4 m/s after 4 frames",
+        "Evidence only updates where that area was actually observed"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Ending",
+      "items": [
+        "A track that finds no match in a frame is dropped at once",
+        "Moving tracks mark their points, so the map tints those cells"
+      ]
+    }
+  ]
+}
