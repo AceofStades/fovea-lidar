@@ -16,6 +16,10 @@ from .objects import MotionCue, Tracker, detect
 from .objeval import ObjectEval
 
 
+# minimum per-point network confidence for a point to take part in object clustering
+DETECT_MIN_CONF = {VEHICLE: 0.5, PEDESTRIAN: 0.7}
+
+
 class Timer:
     def __init__(self, device):
         self.sync = torch.cuda.synchronize if device.type == "cuda" else (lambda: None)
@@ -135,9 +139,15 @@ class Pipeline:
         all_xyz, all_cat = torch.cat(parts_xyz), torch.cat(parts_cat)
         tm.lap("accumulate")
 
-        # objects + motion state from the tracker (works the same for network and ground-truth labels)
+        # objects + motion state from the tracker (works the same for network and ground-truth labels).
+        # Low-confidence vehicle/pedestrian points are left out of clustering only (they stay in the
+        # map): stray uncertain points otherwise form small false objects.
         xyz_np, cat_np = xyz.cpu().numpy(), category.cpu().numpy()
-        boxes = detect(xyz_np, cat_np)
+        det_cat = cat_np.copy()
+        conf_np = conf.cpu().numpy()
+        for c, th in DETECT_MIN_CONF.items():
+            det_cat[(cat_np == c) & (conf_np < th)] = UNKNOWN
+        boxes = detect(xyz_np, det_cat)
         world_all = xyz @ pose[:3, :3].T + pose[:3, 3]
         if boxes:
             idx = torch.from_numpy(np.concatenate([b["indices"] for b in boxes])).to(self.device)
