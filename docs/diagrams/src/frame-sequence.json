@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "One simulator frame, end to end",
+    "output": "docs/diagrams/frame-sequence.html",
+    "viewBox": [
+      1060,
+      680
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "emphasis": {
+          "label": "frame path"
+        },
+        "default": {
+          "label": "call"
+        },
+        "dashed": {
+          "label": "user command"
+        },
+        "return": {
+          "label": "return"
+        }
+      }
+    }
+  },
+  "participants": [
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Dashboard",
+      "sublabel": "three.js app",
+      "sources": [
+        {
+          "path": "src/lidar/web/app.js",
+          "line": 352,
+          "end_line": 367,
+          "label": "WebSocket client"
+        },
+        {
+          "path": "src/lidar/web/app.js",
+          "line": 424,
+          "label": "onFrame"
+        }
+      ]
+    },
+    {
+      "id": "simServer",
+      "type": "backend",
+      "label": "Sim server",
+      "sublabel": "FastAPI /ws",
+      "sources": [
+        {
+          "path": "src/lidar/sim/server.py",
+          "line": 162,
+          "end_line": 256,
+          "label": "/ws handler"
+        },
+        {
+          "path": "src/lidar/sim/server.py",
+          "line": 111,
+          "end_line": 122,
+          "label": "locked_step"
+        }
+      ]
+    },
+    {
+      "id": "framePipeline",
+      "type": "backend",
+      "label": "Pipeline",
+      "sublabel": "step(i)",
+      "sources": [
+        {
+          "path": "src/lidar/pipeline.py",
+          "line": 92,
+          "end_line": 205,
+          "label": "Pipeline.step"
+        }
+      ]
+    },
+    {
+      "id": "segmenter",
+      "type": "backend",
+      "label": "Segmenter",
+      "sublabel": "U-Net fp16",
+      "sources": [
+        {
+          "path": "src/lidar/infer.py",
+          "line": 23,
+          "end_line": 46,
+          "label": "__call__"
+        }
+      ]
+    },
+    {
+      "id": "tracker",
+      "type": "backend",
+      "label": "Tracker",
+      "sublabel": "objects + motion",
+      "sources": [
+        {
+          "path": "src/lidar/objects.py",
+          "line": 34,
+          "end_line": 61,
+          "label": "detect()"
+        },
+        {
+          "path": "src/lidar/objects.py",
+          "line": 148,
+          "end_line": 181,
+          "label": "Tracker.update"
+        }
+      ]
+    },
+    {
+      "id": "gridEngine",
+      "type": "backend",
+      "label": "Grid engine",
+      "sublabel": "project()",
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 131,
+          "end_line": 174,
+          "label": "project()"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 210,
+      "label": "Connect"
+    },
+    {
+      "from": 222,
+      "to": 470,
+      "label": "One frame, 31 ms median"
+    },
+    {
+      "from": 484,
+      "to": 566,
+      "label": "Interaction"
+    }
+  ],
+  "messages": [
+    {
+      "id": "ws-open",
+      "from": "dashboard",
+      "to": "simServer",
+      "y": 170,
+      "label": "open WebSocket /ws",
+      "variant": "emphasis"
+    },
+    {
+      "id": "info-json",
+      "from": "simServer",
+      "to": "dashboard",
+      "y": 198,
+      "label": "info JSON: rings, colours, memory",
+      "variant": "return"
+    },
+    {
+      "id": "step-call",
+      "from": "simServer",
+      "to": "framePipeline",
+      "y": 236,
+      "label": "step(i) in executor, under lock",
+      "variant": "emphasis"
+    },
+    {
+      "id": "segment-call",
+      "from": "framePipeline",
+      "to": "segmenter",
+      "y": 264,
+      "label": "points N × 4",
+      "variant": "default"
+    },
+    {
+      "id": "segment-return",
+      "from": "segmenter",
+      "to": "framePipeline",
+      "y": 292,
+      "label": "class + confidence",
+      "variant": "return"
+    },
+    {
+      "id": "track-call",
+      "from": "framePipeline",
+      "to": "tracker",
+      "y": 320,
+      "label": "confident dynamic points",
+      "variant": "default"
+    },
+    {
+      "id": "track-return",
+      "from": "tracker",
+      "to": "framePipeline",
+      "y": 348,
+      "label": "boxes, speed, moving",
+      "variant": "return"
+    },
+    {
+      "id": "project-call",
+      "from": "framePipeline",
+      "to": "gridEngine",
+      "y": 376,
+      "label": "fused points + moving mask",
+      "variant": "emphasis"
+    },
+    {
+      "id": "project-return",
+      "from": "gridEngine",
+      "to": "framePipeline",
+      "y": 404,
+      "label": "GridFrame: 2.5D layers",
+      "variant": "return"
+    },
+    {
+      "id": "step-return",
+      "from": "framePipeline",
+      "to": "simServer",
+      "y": 432,
+      "label": "frame, boxes, timings",
+      "variant": "return"
+    },
+    {
+      "id": "binary-frame",
+      "from": "simServer",
+      "to": "dashboard",
+      "y": 460,
+      "label": "binary frame: cells, points",
+      "variant": "emphasis"
+    },
+    {
+      "id": "user-commands",
+      "from": "dashboard",
+      "to": "simServer",
+      "y": 498,
+      "label": "play, seek, source",
+      "variant": "dashed"
+    },
+    {
+      "id": "inspect-request",
+      "from": "dashboard",
+      "to": "simServer",
+      "y": 526,
+      "label": "inspect {x, y} on hover",
+      "variant": "dashed"
+    },
+    {
+      "id": "inspect-reply",
+      "from": "simServer",
+      "to": "dashboard",
+      "y": 554,
+      "label": "cell record JSON",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "dashboard",
+      "from": 165,
+      "to": 560,
+      "type": "frontend"
+    },
+    {
+      "participant": "simServer",
+      "from": 165,
+      "to": 560,
+      "type": "backend"
+    },
+    {
+      "participant": "framePipeline",
+      "from": 236,
+      "to": 432,
+      "type": "backend"
+    },
+    {
+      "participant": "segmenter",
+      "from": 264,
+      "to": 292,
+      "type": "backend"
+    },
+    {
+      "participant": "tracker",
+      "from": 320,
+      "to": 348,
+      "type": "backend"
+    },
+    {
+      "participant": "gridEngine",
+      "from": 376,
+      "to": 404,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Frame loop",
+      "items": [
+        "The server paces frames to the replay rate, 10 Hz by default",
+        "pipe.step runs in a worker thread; a lock keeps several tabs from interleaving steps",
+        "Stage timings travel with every frame and feed the latency panels"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Binary frame",
+      "items": [
+        "One message: a JSON header plus typed arrays for cells, points and trajectory",
+        "Cells arrive as x, y, z0, z1, size plus category, drivability, ring and moving bytes",
+        "The browser copies the arrays straight into GPU buffers; shaders do the colouring"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Inspection",
+      "items": [
+        "Hover raycasts the ground plane in the sensor frame",
+        "The server maps the point into the world-anchored grid and returns that cell's layers"
+      ]
+    }
+  ]
+}
