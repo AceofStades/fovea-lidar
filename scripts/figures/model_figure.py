@@ -24,7 +24,7 @@ PNN = Path(os.environ.get("PLOTNEURALNET", Path.home() / ".cache" / "fovea-tools
 PNN_REPO = "https://github.com/HarisIqbal88/PlotNeuralNet.git"
 
 # box height/depth per voxel size and band width per channel count
-SIZE = {"10 cm": 40, "20 cm": 32, "40 cm": 25, "80 cm": 17, "1.6 m": 10}
+SIZE = {"10~cm": 40, "20~cm": 32, "40~cm": 25, "80~cm": 17, "1.6~m": 10}
 WIDTH = {32: 2.0, 64: 2.8, 96: 3.2, 128: 3.8, 256: 5.0}
 
 
@@ -91,61 +91,58 @@ def architecture():
     def enc(name, after, res, ch, caption):
         s = SIZE[res]
         w = WIDTH[ch]
-        return [to_ConvConvRelu(name, s_filer="", n_filer=("", ch), offset="(1.1,0,0)", to=f"({after}-east)",
+        return [to_ConvConvRelu(name, s_filer="", n_filer=("", ""), offset="(2.7,0,0)", to=f"({after}-east)",
                                 width=(w, w), height=s, depth=s, caption=caption + r"\\" + res),
                 to_connection(after, name)]
 
     def dec(name, after, res, ch, skip_ch, caption):
         s = SIZE[res]
         w = WIDTH[ch]
-        return [to_UnPool(f"up_{name}", offset="(1.6,0,0)", to=f"({after}-east)", width=1, height=s, depth=s, opacity=0.5),
+        return [to_UnPool(f"up_{name}", offset="(2.2,0,0)", to=f"({after}-east)", width=1, height=s, depth=s, opacity=0.5),
                 to_ConvRes(f"cat_{name}", s_filer="", n_filer="", offset="(0,0,0)", to=f"(up_{name}-east)",
                            width=WIDTH[skip_ch], height=s, depth=s, opacity=0.35),
-                to_ConvConvRelu(name, s_filer="", n_filer=("", ch), offset="(0,0,0)", to=f"(cat_{name}-east)",
+                to_ConvConvRelu(name, s_filer="", n_filer=("", ""), offset="(0,0,0)", to=f"(cat_{name}-east)",
                                 width=(w, w), height=s, depth=s, caption=caption + r"\\" + res),
                 to_connection(after, f"up_{name}")]
 
     legend = r"""
-\begin{scope}[shift={(2,-8.6,0)}, every node/.style={font=\large, anchor=west}]
-\fill[fill=\ConvColor] (0,0) rectangle ++(0.6,0.6); \node at (0.8,0.3) {residual block: 2 submanifold sparse convs 3$^3$ + BN + ReLU};
-\fill[fill=\PoolColor, opacity=0.6] (0,-1) rectangle ++(0.6,0.6); \node at (0.8,-0.7) {stride-2 sparse conv ($\downarrow$2)};
-\fill[fill=\UnpoolColor, opacity=0.6] (0,-2) rectangle ++(0.6,0.6); \node at (0.8,-1.7) {inverse sparse conv ($\uparrow$2)};
-\fill[fill={rgb:white,1;black,3}, opacity=0.35] (19,0) rectangle ++(0.6,0.6); \node at (19.8,0.3) {concatenated skip features};
-\fill[fill=\SoftmaxColor] (19,-1) rectangle ++(0.6,0.6); \node at (19.8,-0.7) {linear 96 $\rightarrow$ 19 classes + softmax};
-\draw[copyconnection] (19,-1.7) -- ++(0.6,0); \node at (19.8,-1.7) {skip connection};
+\begin{scope}[shift={(0.5,-8.6,0)}, every node/.style={font=\Huge, anchor=west}]
+\fill[fill=\ConvColor] (0,0) rectangle ++(0.8,0.8); \node at (1.0,0.4) {residual block};
+\fill[fill=\PoolColor, opacity=0.6] (11,0) rectangle ++(0.8,0.8); \node at (12.0,0.4) {$\downarrow$2 sparse conv};
+\fill[fill=\UnpoolColor, opacity=0.6] (24,0) rectangle ++(0.8,0.8); \node at (25.0,0.4) {$\uparrow$2 inverse conv};
+\draw[copyconnection] (37,0.4) -- ++(0.8,0); \node at (38.0,0.4) {skip (concat)};
 \end{scope}
-\node[font=\Large\bfseries, anchor=west] at (-6,9.2,0) {Sparse 3D U-Net (FOVEA final model): 10 cm voxels, 23\,M parameters, 67.7\,\% mIoU on SemanticKITTI seq.\ 08};
-\node[font=\large, anchor=west] at (-6,8.2,0) {stem 5$^3$ sparse conv $\cdot$ 4 encoder and 4 decoder stages $\cdot$ box height = voxel size (10 cm to 1.6 m), box width = channels};
+\node[font=\Huge\bfseries, anchor=west] at (-3,9.0,0) {Sparse 3D U-Net \textperiodcentered{} 10 cm voxels \textperiodcentered{} 67.7\,\% mIoU};
 """
 
     arch = [
-        head(), to_cor(), to_begin(),
-        to_input("scan_input.png", to="(-4,0,0)", width=9, height=9, name="scan"),
-        to_Conv("stem", s_filer="", n_filer=32, offset="(0,0,0)", to="(0,0,0)", width=WIDTH[32],
-                height=SIZE["10 cm"], depth=SIZE["10 cm"], caption=r"Stem\\10 cm"),
-        down("down1", "stem", "10 cm"),
-        *enc("enc1", "down1", "20 cm", 32, "Enc 1"),
-        down("down2", "enc1", "20 cm"),
-        *enc("enc2", "down2", "40 cm", 64, "Enc 2"),
-        down("down3", "enc2", "40 cm"),
-        *enc("enc3", "down3", "80 cm", 128, "Enc 3"),
-        down("down4", "enc3", "80 cm"),
-        *enc("enc4", "down4", "1.6 m", 256, "Enc 4"),
-        *dec("dec1", "enc4", "80 cm", 256, 128, "Dec 1"),
+        head(), to_cor(), to_begin(), "\\tikzset{every edge quotes/.append style={font=\\Huge}}\n",
+        to_input("scan_input.png", to="(-3.2,0,0)", width=7, height=7, name="scan"),
+        to_Conv("stem", s_filer="", n_filer="", offset="(0,0,0)", to="(0,0,0)", width=WIDTH[32],
+                height=SIZE["10~cm"], depth=SIZE["10~cm"], caption=r"Stem\\10~cm"),
+        down("down1", "stem", "10~cm"),
+        *enc("enc1", "down1", "20~cm", 32, "Enc~1"),
+        down("down2", "enc1", "20~cm"),
+        *enc("enc2", "down2", "40~cm", 64, "Enc~2"),
+        down("down3", "enc2", "40~cm"),
+        *enc("enc3", "down3", "80~cm", 128, "Enc~3"),
+        down("down4", "enc3", "80~cm"),
+        *enc("enc4", "down4", "1.6~m", 256, "Enc~4"),
+        *dec("dec1", "enc4", "80~cm", 256, 128, "Dec~1"),
         to_skip(of="enc3", to="cat_dec1", pos=1.25),
-        *dec("dec2", "dec1", "40 cm", 128, 64, "Dec 2"),
+        *dec("dec2", "dec1", "40~cm", 128, 64, "Dec~2"),
         to_skip(of="enc2", to="cat_dec2", pos=1.25),
-        *dec("dec3", "dec2", "20 cm", 96, 32, "Dec 3"),
+        *dec("dec3", "dec2", "20~cm", 96, 32, "Dec~3"),
         to_skip(of="enc1", to="cat_dec3", pos=1.25),
-        *dec("dec4", "dec3", "10 cm", 96, 32, "Dec 4"),
+        *dec("dec4", "dec3", "10~cm", 96, 32, "Dec~4"),
         to_skip(of="stem", to="cat_dec4", pos=1.25),
-        to_ConvSoftMax("head", s_filer="", offset="(1.3,0,0)", to="(dec4-east)", width=2.4,
-                       height=SIZE["10 cm"], depth=SIZE["10 cm"], caption=r"Head\\19 classes"),
+        to_ConvSoftMax("head", s_filer="", offset="(2.6,0,0)", to="(dec4-east)", width=2.4,
+                       height=SIZE["10~cm"], depth=SIZE["10~cm"], caption=r"Head\\19~classes"),
         to_connection("dec4", "head"),
         # output panel: the image node is pinned to a zy plane, so place it through a shifted scope
         r"""
-\begin{scope}[shift={($(head-east)+(4.5,0,0)$)}]
-\node[canvas is zy plane at x=0] (pred) at (0,0,0) {\includegraphics[width=9cm,height=9cm]{scan_output.png}};
+\begin{scope}[shift={($(head-east)+(3.6,0,0)$)}]
+\node[canvas is zy plane at x=0] (pred) at (0,0,0) {\includegraphics[width=7cm,height=7cm]{scan_output.png}};
 \end{scope}
 """,
         legend,
