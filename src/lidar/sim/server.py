@@ -6,6 +6,7 @@ to the browser over a WebSocket.
 """
 import argparse
 import asyncio
+import io
 import json
 import struct
 import threading
@@ -16,7 +17,7 @@ import numpy as np
 import torch
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ..grid import OVERHANG, TRAVERSABILITY_COLORS, TRAVERSABILITY_NAMES, GridConfig
@@ -112,10 +113,29 @@ def build_app(pipe, fps=10.0):
     # one pipeline (one GPU, one fusion history) is shared by every open tab: steps must not overlap
     step_lock = threading.Lock()
 
+    latest = {}
+
     def locked_step(i):
         with step_lock:
             out = pipe.step(i)
+            latest.update(frame=out["frame"], index=i, sensor_from_map=out["sensor_from_map"])
             return out, cell_instances(pipe, out["frame"])
+
+    @app.get("/snapshot.npz")
+    def snapshot():
+        """The current map exactly as it would be stored or sent: one 11-byte record per cell plus the
+        ring geometry needed to locate every cell."""
+        if "frame" not in latest:
+            return Response("no frame yet", status_code=404)
+        g = pipe.grid
+        buf = io.BytesIO()
+        np.savez(buf, cells=latest["frame"].to_numpy(), cell_size=np.array(g.cell_sizes),
+                 half_extent=np.array(g.cfg.half_extents), width=np.array(g.widths), offset=np.array(g.offsets),
+                 sensor_from_map=latest["sensor_from_map"], frame=latest["index"],
+                 categories=np.array(CATEGORY_NAMES), traversability=np.array(TRAVERSABILITY_NAMES))
+        name = f"fovea-map-seq{pipe.seq}-frame{latest['index']:04d}.npz"
+        return Response(buf.getvalue(), media_type="application/octet-stream",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
     app.mount("/static", StaticFiles(directory=WEB), name="static")
 
     @app.get("/")
