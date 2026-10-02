@@ -1,0 +1,146 @@
+# FOVEA architecture overview (compact). Render: python scripts/figures/render_d2.py
+# Three bands share one 5-column rhythm (same cell width and gap), so arrows between bands drop straight down.
+vars: {
+  d2-config: {
+    pad: 40
+  }
+}
+
+grid-rows: 3
+grid-gap: 70
+
+classes: {
+  step: {
+    shape: rectangle
+    width: 280
+    height: 96
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#2B6CB0"
+      stroke-width: 2
+      border-radius: 10
+      font-size: 21
+      font-color: "#14213D"
+      shadow: true
+    }
+  }
+  store: {
+    shape: cylinder
+    width: 280
+    height: 110
+    style: {
+      fill: "#F3EEFF"
+      stroke: "#6B46C1"
+      stroke-width: 2
+      font-size: 21
+      font-color: "#14213D"
+    }
+  }
+  key: {
+    shape: rectangle
+    width: 280
+    height: 96
+    style: {
+      fill: "#0B111A"
+      stroke: "#0B111A"
+      border-radius: 10
+      font-size: 21
+      font-color: "#E8EEF5"
+      shadow: true
+    }
+  }
+  spacer: {
+    label: ""
+    width: 280
+    height: 96
+    style: {
+      fill: transparent
+      stroke: transparent
+      shadow: false
+    }
+  }
+  band: {
+    grid-columns: 5
+    grid-gap: 60
+    style: {
+      border-radius: 16
+      font-size: 22
+      bold: true
+    }
+  }
+}
+
+title: |md
+  # FOVEA: adaptive variable-resolution 2.5D LiDAR mapping
+| {near: top-center}
+
+offline: Data and offline training {
+  class: band
+  style: {fill: "#FFF7E8"; stroke: "#D69E2E"}
+  dataset: |md
+    **SemanticKITTI**\
+    64-beam LiDAR, 10 Hz
+  | {class: store}
+  training: |md
+    **Trained on Kaggle**\
+    5 variants · best: 10 cm
+  | {class: step; style.stroke: "#D69E2E"}
+  s1: {class: spacer}
+  s2: {class: spacer}
+  results: |md
+    **67.7 % mIoU · 32 FPS**\
+    map 22× smaller
+  | {class: step; style.fill: "#14213D"; style.font-color: "#FFD27A"; style.stroke: "#14213D"}
+  dataset -> training: {style.stroke: "#B7791F"; style.stroke-width: 2}
+}
+
+pipeline: Per-frame pipeline on the GPU · 31 ms per scan {
+  class: band
+  style: {fill: "#EAF6FD"; stroke: "#2B6CB0"}
+  scan: |md
+    **LiDAR scan**\
+    ~120k points
+  | {class: step}
+  unet: |md
+    **Sparse 3D U-Net**\
+    19 classes · 15 ms
+  | {class: step}
+  fusion: |md
+    **Temporal fusion**\
+    10 scans · 1 ms
+  | {class: step}
+  objects: |md
+    **Objects + motion**\
+    tracked boxes · 6 ms
+  | {class: step}
+  grid: |md
+    **Foveated 2.5D grid**\
+    5 → 40 cm rings · 7 ms
+  | {class: key}
+  scan -> unet -> fusion -> objects -> grid: {style.stroke: "#2B6CB0"; style.stroke-width: 3}
+}
+
+outputs: Outputs {
+  class: band
+  style: {fill: "#EAF7EF"; stroke: "#2F855A"}
+  s1: {class: spacer}
+  s2: {class: spacer}
+  bench: |md
+    **Benchmarks**\
+    accuracy by distance
+  | {class: step; style.stroke: "#2F855A"}
+  map: |md
+    **2.5D map: 8 MB**\
+    11 bytes per cell
+  | {class: store; style.fill: "#E6F6EC"; style.stroke: "#2F855A"}
+  sim: |md
+    **Live simulator**\
+    WebSocket → three.js
+  | {class: step; style.stroke: "#2F855A"}
+}
+
+offline.dataset -> pipeline.scan: replay 10 Hz {style.stroke: "#2B6CB0"; style.stroke-width: 2; style.font-size: 19}
+offline.training -> pipeline.unet: fp16 weights {style.stroke: "#6B46C1"; style.stroke-dash: 4; style.stroke-width: 2; style.font-size: 19}
+pipeline.grid -> outputs.sim: frames {style.stroke: "#2F855A"; style.stroke-width: 2; style.font-size: 19}
+pipeline.grid -> outputs.map: snapshot {style.stroke: "#2F855A"; style.stroke-width: 2; style.font-size: 19}
+pipeline.grid -> outputs.bench: metrics {style.stroke: "#2F855A"; style.stroke-width: 2; style.font-size: 19}
