@@ -253,7 +253,14 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     pipe = Pipeline(args.root, args.seq, args.checkpoint, GridConfig(), args.accumulate, anchor=args.anchor)
-    print(f"sequence {args.seq}: {len(pipe)} frames, source={pipe.source}; open http://{args.host}:{args.port}")
+    # warm up before accepting viewers: the first sparse-conv call tunes GPU kernels (~15 s)
+    t = time.perf_counter()
+    for i in range(3):
+        pipe.step(i)
+    pipe.prev_index = None
+    pipe.reset_metrics()
+    print(f"warm-up {time.perf_counter() - t:.1f} s; sequence {args.seq}: {len(pipe)} frames, "
+          f"source={pipe.source}; open http://{args.host}:{args.port}", flush=True)
     uvicorn.run(build_app(pipe, args.fps), host=args.host, port=args.port, log_level="warning")
 
 
