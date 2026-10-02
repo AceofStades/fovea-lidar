@@ -259,7 +259,8 @@ function setBoxes(boxes) {
     lab.pos.set(b.center[0], b.center[1], b.center[2] + b.size[2] / 2 + 0.3);
     const name = info.categories[b.category];
     lab.el.className = 'tag' + (b.moving ? ' mv' : '');
-    lab.el.textContent = `${name} #${b.id} · ${b.distance.toFixed(0)} m` + (b.moving ? ` · ${(b.speed * 3.6).toFixed(0)} km/h` : '');
+    const motion = b.moving ? (b.speed >= 1 ? ` · ${(b.speed * 3.6).toFixed(0)} km/h` : ' · moving') : '';
+    lab.el.textContent = `${name} #${b.id} · ${b.distance.toFixed(0)} m${motion}`;
   });
 }
 
@@ -552,6 +553,8 @@ function updatePanels(h) {
     const cv = Object.values(met.category_iou).filter((v) => v !== null);
     $('kpi-cat').textContent = `${(cv.reduce((s, v) => s + v, 0) / cv.length * 100).toFixed(1)}%`;
     $('acc-points').textContent = `${(met.points_evaluated / 1e6).toFixed(1)}M pts`;
+    $('acc-scope').textContent = `Accumulated over the ${met.frames} frames played in this session`
+      + (info.model_val_miou ? ` · full sequence 08: ${(info.model_val_miou * 100).toFixed(1)} % mIoU.` : '.');
     $('dist-bars').innerHTML = Object.entries(met.by_distance).filter(([, v]) => v.points > 0)
       .map(([k, v]) => bar(k, v.miou, '#38bdf8', `${(v.points / 1e3).toFixed(0)}k pts`)).join('');
     $('cat-bars').innerHTML = Object.entries(met.category_iou).filter(([, v]) => v !== null)
@@ -564,7 +567,7 @@ function updatePanels(h) {
   $('objects').innerHTML = boxes.length ? boxes.slice(0, 14).map((b) => `
     <div class="obj"><span class="sw" style="background:rgb(${info.category_colors[b.category]})"></span>
     <span>${info.categories[b.category]} #${b.id}<span class="badge ${b.moving ? 'mv' : 'st'}">${b.moving ? 'MOVING' : 'STATIC'}</span></span>
-    <span class="d">${b.distance.toFixed(1)} m</span><span class="s">${(b.speed * 3.6).toFixed(0)} km/h</span></div>`).join('')
+    <span class="d">${b.distance.toFixed(1)} m</span><span class="s">${b.speed >= 1 ? `${(b.speed * 3.6).toFixed(0)} km/h` : '—'}</span></div>`).join('')
     : '<div class="empty">No vehicles or pedestrians in view.</div>';
 }
 

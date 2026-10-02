@@ -77,6 +77,7 @@ class Pipeline:
         self.latency_hist = deque(maxlen=300)
         self.motion_tp = self.motion_fp = self.motion_fn = 0
         self.objects_eval = ObjectEval()
+        self.frames_evaluated = 0
 
     def has_labels(self, i):
         return self.files[i][1] is not None and Path(self.files[i][1]).exists()
@@ -180,6 +181,7 @@ class Pipeline:
             gt_cat = np.where(gt_np == IGNORE, 255, gt_cat)
             self.cat_iou.update(cat_np.astype(np.int64), gt_cat)
             self.iou_dist.update(cat_np.astype(np.int64), gt_cat, xyz_np)
+            self.frames_evaluated += 1
         if gt_inst is not None:
             self.objects_eval.update(xyz_np, gt_np, gt_inst, boxes, box_indices)
         if moving is not None:
@@ -211,6 +213,7 @@ class Pipeline:
             "category_iou": {n: (None if np.isnan(v) else float(v)) for n, v in zip(CATEGORY_NAMES, cat_iou) if n != "unknown"},
             "by_distance": {k: {"miou": v[0], "acc": v[1], "points": v[2]} for k, v in self.iou_dist.summary().items()},
             "points_evaluated": int(self.iou.cm.sum()),
+            "frames": self.frames_evaluated,
             "objects": self.objects_eval.summary(),
             **self.motion_summary(),
         }

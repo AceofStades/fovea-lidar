@@ -107,10 +107,11 @@
   </section>
   <section id="acc-section">
     <h3>Accuracy vs ground truth <span class="val" id="acc-points"></span></h3>
+    <div class="hint" id="acc-scope" style="margin:-4px 0 8px">Accumulated over the frames played in this session.</div>
     <div id="seg-metrics">
       <div class="kpis two">
-        <div class="kpi"><div class="k" id="kpi-miou">—</div><div class="l">mIoU (19 classes)</div></div>
-        <div class="kpi"><div class="k" id="kpi-cat">—</div><div class="l">mIoU (map categories)</div></div>
+        <div class="kpi"><div class="k" id="kpi-miou">—</div><div class="l">session mIoU, 19 classes</div></div>
+        <div class="kpi"><div class="k" id="kpi-cat">—</div><div class="l">session mIoU, map categories</div></div>
       </div>
       <div class="sub">By distance from the sensor</div>
       <div id="dist-bars"></div>
