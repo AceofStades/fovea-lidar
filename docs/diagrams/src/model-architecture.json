@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Sparse 3D U-Net segmentation model (final: 10 cm voxels)",
+    "output": "docs/diagrams/model-architecture.html",
+    "viewBox": [
+      1075,
+      690
+    ],
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "emphasis": {
+          "label": "feature tensor path"
+        },
+        "dashed": {
+          "label": "skip connection (concat)"
+        },
+        "default": {
+          "label": "post-processing"
+        },
+        "database": {
+          "label": "per-point output"
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "label": "Input"
+    },
+    {
+      "label": "Encoder ↓"
+    },
+    {
+      "label": "Deepest stage"
+    },
+    {
+      "label": "Decoder ↑"
+    },
+    {
+      "label": "Output"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "voxelize",
+      "type": "frontend",
+      "label": "GPU voxelization",
+      "sublabel": "points → 10 cm voxels",
+      "tag": "x y z r range",
+      "stage": 0,
+      "row": 0,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/infer.py",
+          "line": 26,
+          "end_line": 38,
+          "label": "voxelize + features"
+        }
+      ]
+    },
+    {
+      "id": "stem",
+      "type": "backend",
+      "label": "Stem",
+      "sublabel": "SubMConv 5³ · 32 ch",
+      "tag": "10 cm",
+      "stage": 1,
+      "row": 0,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 34,
+          "end_line": 35,
+          "label": "stem"
+        }
+      ]
+    },
+    {
+      "id": "encoder1",
+      "type": "backend",
+      "label": "Encoder 1",
+      "sublabel": "2 res blocks · 32 ch",
+      "tag": "20 cm",
+      "stage": 1,
+      "row": 1,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 38,
+          "end_line": 43,
+          "label": "encoder stages"
+        },
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 12,
+          "end_line": 26,
+          "label": "BasicBlock"
+        }
+      ]
+    },
+    {
+      "id": "encoder2",
+      "type": "backend",
+      "label": "Encoder 2",
+      "sublabel": "2 res blocks · 64 ch",
+      "tag": "40 cm",
+      "stage": 1,
+      "row": 2,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 38,
+          "end_line": 43,
+          "label": "encoder stages"
+        }
+      ]
+    },
+    {
+      "id": "encoder3",
+      "type": "backend",
+      "label": "Encoder 3",
+      "sublabel": "2 res blocks · 128 ch",
+      "tag": "80 cm",
+      "stage": 1,
+      "row": 3,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 38,
+          "end_line": 43,
+          "label": "encoder stages"
+        }
+      ]
+    },
+    {
+      "id": "encoder4",
+      "type": "messagebus",
+      "label": "Encoder 4",
+      "sublabel": "2 res blocks · 256 ch",
+      "tag": "1.6 m",
+      "stage": 2,
+      "row": 4,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 38,
+          "end_line": 43,
+          "label": "encoder stages"
+        }
+      ],
+      "yOffset": -28
+    },
+    {
+      "id": "decoder1",
+      "type": "backend",
+      "label": "Decoder 1",
+      "sublabel": "cat skip · 256 ch",
+      "tag": "80 cm",
+      "stage": 3,
+      "row": 3,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 44,
+          "end_line": 51,
+          "label": "decoder stages"
+        },
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 63,
+          "end_line": 66,
+          "label": "concat skip"
+        }
+      ]
+    },
+    {
+      "id": "decoder2",
+      "type": "backend",
+      "label": "Decoder 2",
+      "sublabel": "cat skip · 128 ch",
+      "tag": "40 cm",
+      "stage": 3,
+      "row": 2,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 44,
+          "end_line": 51,
+          "label": "decoder stages"
+        }
+      ]
+    },
+    {
+      "id": "decoder3",
+      "type": "backend",
+      "label": "Decoder 3",
+      "sublabel": "cat skip · 96 ch",
+      "tag": "20 cm",
+      "stage": 3,
+      "row": 1,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 44,
+          "end_line": 51,
+          "label": "decoder stages"
+        }
+      ]
+    },
+    {
+      "id": "decoder4",
+      "type": "backend",
+      "label": "Decoder 4",
+      "sublabel": "cat skip · 96 ch",
+      "tag": "10 cm",
+      "stage": 3,
+      "row": 0,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 44,
+          "end_line": 51,
+          "label": "decoder stages"
+        }
+      ]
+    },
+    {
+      "id": "head",
+      "type": "security",
+      "label": "Classifier head",
+      "sublabel": "Linear 96 → 19",
+      "tag": "per voxel",
+      "stage": 4,
+      "row": 0,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/models/spunet.py",
+          "line": 52,
+          "label": "head"
+        }
+      ]
+    },
+    {
+      "id": "pointLabels",
+      "type": "database",
+      "label": "Per-point labels",
+      "sublabel": "class + confidence",
+      "tag": "inverse map",
+      "stage": 4,
+      "row": 1,
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/infer.py",
+          "line": 39,
+          "end_line": 46,
+          "label": "softmax + scatter back"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "voxel-features",
+      "from": "voxelize",
+      "to": "stem",
+      "label": "5-ch features",
+      "variant": "emphasis",
+      "labelDx": 1,
+      "labelDy": 54
+    },
+    {
+      "id": "down-1",
+      "from": "stem",
+      "to": "encoder1",
+      "label": "↓ stride 2",
+      "variant": "emphasis",
+      "labelDy": 25
+    },
+    {
+      "id": "down-2",
+      "from": "encoder1",
+      "to": "encoder2",
+      "label": "↓ stride 2",
+      "variant": "emphasis",
+      "labelDy": 25
+    },
+    {
+      "id": "down-3",
+      "from": "encoder2",
+      "to": "encoder3",
+      "label": "↓ stride 2",
+      "variant": "emphasis",
+      "labelDy": 25
+    },
+    {
+      "id": "down-4",
+      "from": "encoder3",
+      "to": "encoder4",
+      "label": "↓ stride 2",
+      "variant": "emphasis"
+    },
+    {
+      "id": "up-1",
+      "from": "encoder4",
+      "to": "decoder1",
+      "label": "↑ inverse conv",
+      "variant": "emphasis",
+      "labelDx": 1,
+      "labelDy": 11
+    },
+    {
+      "id": "up-2",
+      "from": "decoder1",
+      "to": "decoder2",
+      "label": "↑ inverse conv",
+      "variant": "emphasis"
+    },
+    {
+      "id": "up-3",
+      "from": "decoder2",
+      "to": "decoder3",
+      "label": "↑ inverse conv",
+      "variant": "emphasis"
+    },
+    {
+      "id": "up-4",
+      "from": "decoder3",
+      "to": "decoder4",
+      "label": "↑ inverse conv",
+      "variant": "emphasis"
+    },
+    {
+      "id": "decoder-features",
+      "from": "decoder4",
+      "to": "head",
+      "label": "96-ch features",
+      "variant": "emphasis",
+      "labelDx": 1,
+      "labelDy": 54
+    },
+    {
+      "id": "logits-to-points",
+      "from": "head",
+      "to": "pointLabels",
+      "label": "argmax + softmax",
+      "variant": "default",
+      "labelDy": 25
+    },
+    {
+      "id": "skip-full",
+      "from": "stem",
+      "to": "decoder4",
+      "label": "skip 32 ch",
+      "classification": "concat",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "id": "skip-half",
+      "from": "encoder1",
+      "to": "decoder3",
+      "label": "skip 32 ch",
+      "classification": "concat",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "id": "skip-quarter",
+      "from": "encoder2",
+      "to": "decoder2",
+      "label": "skip 64 ch",
+      "classification": "concat",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "id": "skip-eighth",
+      "from": "encoder3",
+      "to": "decoder1",
+      "label": "skip 128 ch",
+      "classification": "concat",
+      "variant": "dashed",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "U shape",
+      "items": [
+        "Four stride-2 sparse convolutions take the voxel size from 10 cm to 1.6 m",
+        "Inverse sparse convolutions reuse the encoder's indices, restoring exactly the same voxels",
+        "Each decoder stage concatenates encoder features of the same resolution"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Building blocks",
+      "items": [
+        "Residual block: two 3×3×3 submanifold convolutions with BatchNorm and ReLU",
+        "23 M parameters at width 1.0; the narrow variant (width 0.5) has 5.8 M",
+        "Runs as an fp16 model: 15 ms per scan on an RTX 5060 Ti"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Input and output",
+      "items": [
+        "Five features per voxel: x, y, z, remission and range / 50",
+        "Each point takes its voxel's class; the softmax confidence is kept",
+        "Object clustering ignores low-confidence vehicle and pedestrian points"
+      ]
+    }
+  ]
+}
