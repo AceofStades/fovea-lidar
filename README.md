@@ -58,6 +58,9 @@ live simulator (FastAPI WebSocket → three.js)  +  benchmark report
 | L2 | 20 cm | 20–40 m | 120k |
 | L3 | 40 cm | 40–100 m | 210k |
 
+`--rings spec` switches to the ladder given as the example in the problem statement — 5 cm within
+10 m, 10 cm to 20 m, 50 cm out to 100 m (ratios ×2 and ×5, still exactly nested).
+
 Why coarser far away is the right call and not just a memory trick: a spinning LiDAR fires at fixed
 angles, so the spacing between returns grows linearly with range. A 5 cm cell at 80 m is empty almost
 every scan; a 5 cm cell at 5 m sees the curb that matters for safety.
@@ -131,8 +134,9 @@ accuracy is reported in 10 m bands up to 50 m; the map itself extends to 100 m.
 
 | Representation (same 200 m × 200 m coverage) | Cells | Size |
 |---|---|---|
-| **FOVEA variable-resolution 2.5D** (11 B/cell) | 0.73 M | **8.0 MB** |
-| Uniform 5 cm 2.5D grid (same cell record) | 16 M | 176 MB (22× more) |
+| **FOVEA variable-resolution 2.5D**, 5/10/20/40 cm rings (11 B/cell) | 0.73 M | **8.0 MB** |
+| FOVEA with the problem statement's 5/10/50 cm ladder (`--rings spec`) | 0.48 M | 5.3 MB |
+| Uniform 5 cm 2.5D grid (same cell record) | 16 M | 176 MB (22× / 33× more) |
 | Dense 5 cm 3D voxels, 8 m tall, 1 byte/voxel | 2.56 B | 2.56 GB (319× more) |
 
 Projecting one scan into all layers takes 5.8 ms in the variable-resolution grid against 38.4 ms for
