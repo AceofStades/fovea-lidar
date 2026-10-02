@@ -1,0 +1,299 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Grid engine: one frame into the foveated 2.5D map",
+    "output": "docs/diagrams/grid-engine.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:AceofStades/fovea-lidar.git",
+      "link_mode": "local-only",
+      "revision": "eea8c4debe733e70774a06ee63e5a6b4a84963a6"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {
+          "label": "GPU step"
+        },
+        "security": {
+          "label": "safety decision"
+        },
+        "database": {
+          "label": "map record"
+        },
+        "external": {
+          "label": "points in / out"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "outOfRange",
+      "label": "Not mapped",
+      "variant": "exception"
+    },
+    {
+      "id": "indexing",
+      "label": "Index + statistics"
+    },
+    {
+      "id": "layers",
+      "label": "Derived 2.5D layers"
+    },
+    {
+      "id": "output",
+      "label": "Output"
+    }
+  ],
+  "mainPath": [
+    "fusedPoints",
+    "latticeIndex",
+    "scatterStats",
+    "fillGround",
+    "obstacleClass",
+    "drivability",
+    "gridFrame"
+  ],
+  "nodes": [
+    {
+      "id": "fusedPoints",
+      "lane": "indexing",
+      "col": 0,
+      "type": "external",
+      "label": "Fused points",
+      "sublabel": "world-anchored frame",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/pipeline.py",
+          "line": 126,
+          "end_line": 143,
+          "label": "map frame + fusion"
+        }
+      ]
+    },
+    {
+      "id": "latticeIndex",
+      "lane": "indexing",
+      "col": 1,
+      "type": "backend",
+      "label": "Lattice index",
+      "sublabel": "5 cm int → ring → cell",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 112,
+          "end_line": 120,
+          "label": "cell_index()"
+        },
+        {
+          "path": "src/lidar/grid.py",
+          "line": 141,
+          "end_line": 145,
+          "label": "keep mask"
+        }
+      ]
+    },
+    {
+      "id": "outsideRings",
+      "lane": "outOfRange",
+      "col": 1,
+      "type": "external",
+      "label": "Dropped",
+      "sublabel": "past 100 m or z range",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 141,
+          "end_line": 145,
+          "label": "keep mask"
+        }
+      ]
+    },
+    {
+      "id": "scatterStats",
+      "lane": "indexing",
+      "col": 2,
+      "type": "backend",
+      "label": "Scatter stats",
+      "sublabel": "count, class, ground Σz",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 147,
+          "end_line": 156,
+          "label": "index_add_"
+        }
+      ]
+    },
+    {
+      "id": "fillGround",
+      "lane": "indexing",
+      "col": 3,
+      "type": "backend",
+      "label": "Fill ground",
+      "sublabel": "pool hole, push-pull",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 188,
+          "end_line": 204,
+          "label": "_fill_ground"
+        },
+        {
+          "path": "src/lidar/grid.py",
+          "line": 287,
+          "end_line": 298,
+          "label": "_push_pull"
+        }
+      ]
+    },
+    {
+      "id": "obstacleClass",
+      "lane": "layers",
+      "col": 4,
+      "type": "security",
+      "label": "Obstacles + class",
+      "sublabel": "clearance, safety-first",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 159,
+          "end_line": 165,
+          "label": "heights above ground"
+        },
+        {
+          "path": "src/lidar/grid.py",
+          "line": 176,
+          "end_line": 186,
+          "label": "_decide_category"
+        }
+      ]
+    },
+    {
+      "id": "drivability",
+      "lane": "layers",
+      "col": 5,
+      "type": "security",
+      "label": "Step + drivability",
+      "sublabel": "curbs, overhangs",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 206,
+          "end_line": 216,
+          "label": "_step_height"
+        },
+        {
+          "path": "src/lidar/grid.py",
+          "line": 218,
+          "end_line": 231,
+          "label": "_traversability"
+        }
+      ]
+    },
+    {
+      "id": "gridFrame",
+      "lane": "output",
+      "col": 5,
+      "type": "database",
+      "label": "GridFrame",
+      "sublabel": "11 B per cell",
+      "width": 150,
+      "sources": [
+        {
+          "path": "src/lidar/grid.py",
+          "line": 252,
+          "end_line": 280,
+          "label": "GridFrame + record"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "points-to-index",
+      "from": "fusedPoints",
+      "to": "latticeIndex",
+      "variant": "emphasis"
+    },
+    {
+      "id": "index-to-stats",
+      "from": "latticeIndex",
+      "to": "scatterStats",
+      "label": "cell ids",
+      "variant": "emphasis"
+    },
+    {
+      "id": "stats-to-fill",
+      "from": "scatterStats",
+      "to": "fillGround",
+      "label": "Σz, n",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fill-to-class",
+      "from": "fillGround",
+      "to": "obstacleClass",
+      "label": "ground z",
+      "variant": "emphasis"
+    },
+    {
+      "id": "class-to-drive",
+      "from": "obstacleClass",
+      "to": "drivability",
+      "variant": "emphasis"
+    },
+    {
+      "id": "drive-to-frame",
+      "from": "drivability",
+      "to": "gridFrame",
+      "label": "7 layers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "drop-outside",
+      "from": "latticeIndex",
+      "to": "outsideRings",
+      "label": "no ring",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Exact indexing",
+      "items": [
+        "A point's ring and its cell come from the same integer, so it lands in exactly one cell",
+        "Ring edges sit on coarse-cell edges: every coarse cell is an exact union of fine cells",
+        "World anchoring keeps every cell boundary fixed while the rings scroll with the vehicle"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "2.5D layers",
+      "items": [
+        "Ground height is filled under cars and behind walls from neighbouring cells",
+        "Clearance is the lowest obstacle point above ground; an overhang is passable only over seen ground",
+        "Step height to the 3×3 neighbours marks curbs and pothole rims"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cost",
+      "items": [
+        "All layers for about 1.1 M fused points in roughly 7 ms on the GPU",
+        "730 k cells × 11 bytes: 8 MB per map"
+      ]
+    }
+  ]
+}
