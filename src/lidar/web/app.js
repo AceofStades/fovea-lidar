@@ -19,7 +19,9 @@ const recvTimes = [];
 
 // ------------------------------------------------------------------ renderer / scene
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// phones and small laptops: start lower, then let the governor in animate() adjust to real frame times
+const LOW_END = (navigator.hardwareConcurrency ?? 8) <= 4 || (navigator.deviceMemory ?? 8) <= 4 || matchMedia('(pointer: coarse)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, LOW_END ? 1.25 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(BG);
 $('viewport').appendChild(renderer.domElement);
@@ -716,8 +718,33 @@ function renderMini() {
 }
 
 // ------------------------------------------------------------------ render loop
+// resolution governor: if frames average under ~50 fps, drop the pixel ratio a step; raise it again
+// after a long smooth stretch
+const gov = { last: 0, sum: 0, n: 0, calm: 0, cap: Math.min(devicePixelRatio, 2) };
+function govern(t) {
+  const dt = gov.last ? t - gov.last : 16;
+  gov.last = t;
+  if (dt > 250) { gov.sum = gov.n = 0; return; }
+  gov.sum += dt; gov.n++;
+  if (gov.n < 90) return;
+  const avg = gov.sum / gov.n, r = renderer.getPixelRatio();
+  gov.sum = gov.n = 0;
+  if (avg > 20 && r > 0.6) { renderer.setPixelRatio(Math.max(0.6, r - 0.25)); renderer.setSize(innerWidth, innerHeight); gov.calm = t; }
+  else if (avg < 14) { if (!gov.calm) gov.calm = t; if (t - gov.calm > 8000 && r < gov.cap) { renderer.setPixelRatio(Math.min(gov.cap, r + 0.25)); renderer.setSize(innerWidth, innerHeight); gov.calm = t; } }
+  else gov.calm = t;
+}
+
+// phone sheets
+document.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => {
+  const k = `sheet-${b.dataset.sheet}`, on = !document.body.classList.contains(k);
+  document.body.classList.remove('sheet-left', 'sheet-right');
+  document.body.classList.toggle(k, on);
+}));
+if (matchMedia('(max-width: 760px)').matches) $('lay-mini').checked = false;
+
 function animate(t) {
   requestAnimationFrame(animate);
+  govern(t);
   if (camTween) {
     const u = Math.min((performance.now() - camTween.t0) / 700, 1);
     const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;

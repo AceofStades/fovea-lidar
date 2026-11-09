@@ -122,7 +122,7 @@ table.rings .sw { display: inline-block; width: 9px; height: 9px; border-radius:
 .timeline button:hover { color: var(--text); }
 .timeline .play { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #04121c; font-size: 14px; }
 .timeline .play:hover { color: #04121c; filter: brightness(1.1); }
-.timeline .frame { font-family: var(--mono); color: var(--muted); min-width: 92px; text-align: right; font-size: 12px; }
+.timeline .frame { font-family: var(--mono); color: var(--muted); min-width: 92px; text-align: right; font-size: 12px; white-space: nowrap; }
 .timeline select { background: #141b27; border: 1px solid var(--panel-border); border-radius: 8px; padding: 4px 6px; }
 
 /* ---------- 3D labels ---------- */
@@ -216,3 +216,21 @@ body.replay .dl { display: none; }
 .rl-bar div { width: 0; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width 0.2s linear; }
 .rl-meta { width: 100%; display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--muted); }
 .rl-pct { color: var(--text); }
+
+/* ---------- phones: the panels become sheets behind two buttons ---------- */
+.mobile-toggles { display: none; }
+@media (max-width: 760px) {
+  .topbar { top: 10px; left: 10px; right: 10px; }
+  .brand .subtitle, #chip-seq, #chip-source, #chip-lat, #btn-about { display: none; }
+  .chips { gap: 6px; }
+  .panel { display: none; left: 8px !important; right: 8px !important; width: auto !important; top: auto; bottom: 118px; max-height: 56vh; overflow-y: auto; z-index: 7; }
+  body.sheet-left .panel.left, body.sheet-right .panel.right { display: block; }
+  .mobile-toggles { display: flex; gap: 8px; position: fixed; left: 50%; transform: translateX(-50%); bottom: 72px; z-index: 8; }
+  .mobile-toggles button { font: 600 12px/1 Inter, system-ui, sans-serif; color: var(--text); background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 999px; padding: 9px 14px; backdrop-filter: blur(10px); }
+  body.sheet-left [data-sheet=left], body.sheet-right [data-sheet=right] { background: var(--accent); color: #04121c; border-color: var(--accent); }
+  #minimap { display: none !important; }
+  .timeline { width: calc(100% - 16px); bottom: 10px; gap: 6px; padding: 8px 10px; }
+  .timeline .frame { min-width: 0; }
+  #inspector { display: none !important; }
+}
