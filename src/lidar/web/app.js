@@ -365,6 +365,9 @@ async function startReplay(dir) {
   $('lay-points').disabled = true;
   points.visible = false;
   replay = createReplay(dir, { onInfo, onFrame, onInspect, setConn });
+  // a recording reads better a little slower than the sensor's 10 Hz
+  $('speed').value = '5';
+  send({ cmd: 'speed', fps: 5 });
 }
 function connect() {
   if (params.has('replay')) return startReplay(params.get('replay') || 'replay/');

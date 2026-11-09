@@ -22,16 +22,17 @@ function decodeFrame(buf, at) {
 }
 
 // LEB128 varints into plain numbers (keys reach 2^46, still exact in a double)
-function* varints(bytes) {
-  let v = 0, mul = 1;
+function varints(bytes, n, signed) {
+  const out = new Float64Array(n);
+  let v = 0, mul = 1, k = 0;
   for (let i = 0; i < bytes.length; i++) {
     const b = bytes[i];
     v += (b & 0x7f) * mul;
     if (b & 0x80) mul *= 128;
-    else { yield v; v = 0; mul = 1; }
+    else { out[k++] = signed ? (v % 2 ? -(v + 1) / 2 : v / 2) : v; v = 0; mul = 1; }
   }
+  return out;
 }
-const unzig = (v) => (v % 2 ? -(v + 1) / 2 : v / 2);
 
 export function createReplay(base, sink) {
   const url = (p) => new URL(p, new URL(base, location.href)).href;
@@ -39,6 +40,8 @@ export function createReplay(base, sink) {
   const chunks = [];      // ArrayBuffer per chunk, once loaded
   const offsets = [];     // per frame: [chunk, byte offset]
   let index = 0, playing = true, fps = 10, timer = 0, dirty = true;
+  let stalled = true;     // waiting for data: hold until a few seconds are buffered ahead
+  const AHEAD = 3;        // chunks (≈ 3 s) to have in hand before playing on
   let last = null;        // last decoded frame, for inspect
 
   function expand(f) {
@@ -48,11 +51,11 @@ export function createReplay(base, sink) {
     const attr = new Uint8Array(n * 4);
     const keys = new Float64Array(n);
     let key = 0, z0 = 0, k = 0;
-    const kIt = varints(sec[0]), zIt = varints(sec[1]), hIt = varints(sec[2]);
+    const dk = varints(sec[0], n, false), dz = varints(sec[1], n, true), hs = varints(sec[2], n, true);
     for (let i = 0; i < n; i++) {
-      key += kIt.next().value;
-      z0 += unzig(zIt.next().value);
-      const h = unzig(hIt.next().value);
+      key += dk[i];
+      z0 += dz[i];
+      const h = hs[i];
       const lvl = Math.floor(key / 2 ** 44);
       const rest = key - lvl * 2 ** 44;
       const iy = Math.floor(rest / 2 ** 22) - 2 ** 21;
@@ -73,20 +76,44 @@ export function createReplay(base, sink) {
     return { geo, attr, keys };
   }
 
+  const loadedCount = () => chunks.filter(Boolean).length;
+  function bufferedAhead() {
+    // whole chunks downloaded from the playhead on (wrapping once everything is in)
+    const total = info.replay.chunks, c0 = Math.floor(index / info.replay.per_chunk);
+    let n = 0;
+    while (n < total && chunks[(c0 + n) % total]) n++;
+    return n;
+  }
+  function loadingText() {
+    return `loading ${Math.round((loadedCount() / info.replay.chunks) * 100)}%`;
+  }
   function show() {
     const where = offsets[index];
-    if (!where || !chunks[where[0]]) { sink.setConn('buffering…', 'err'); return false; }
+    if (!where || !chunks[where[0]]) return false;
     const f = decodeFrame(chunks[where[0]], where[1]);
     const { geo, attr, keys } = expand(f);
     const h = { ...f.header, index, frames: info.replay.count, playing, buffers: [] };
     last = { h, geo, attr, keys };
-    sink.setConn(`replay · frame ${info.replay.first + index}`, 'ok');
+    const done = loadedCount() === info.replay.chunks;
+    sink.setConn(done ? `replay · frame ${info.replay.first + index}` : `${loadingText()} · frame ${info.replay.first + index}`, 'ok');
     sink.onFrame({ header: h, arrays: { cells_geo: geo, cells_attr: attr, trajectory: f.trajectory } });
     return true;
   }
 
   function tick() {
     clearTimeout(timer);
+    if (playing && info) {
+      const all = loadedCount() === info.replay.chunks;
+      const ahead = bufferedAhead();
+      if (stalled && (all || ahead >= Math.min(AHEAD, info.replay.chunks))) stalled = false;
+      else if (!stalled && ahead === 0) stalled = true;
+      if (stalled) {
+        if (!last && offsets[index]) show();   // first frame right away, still while buffering
+        sink.setConn(loadingText(), 'err');
+        timer = setTimeout(tick, 100);
+        return;
+      }
+    }
     if (dirty || playing) {
       if (show()) {
         dirty = false;
@@ -141,19 +168,23 @@ export function createReplay(base, sink) {
     info.frames = info.replay.count;
     sink.onInfo(info);
     tick();
-    // fetch chunks in order; playback starts with the first and waits if it catches up
-    for (let c = 0; c < info.replay.chunks; c++) {
-      const buf = await (await fetch(url(`chunk-${String(c).padStart(3, '0')}.bin`))).arrayBuffer();
-      const dv = new DataView(buf);
-      const count = dv.getUint32(4, true);
-      let o = 8;
-      for (let k = 0; k < count; k++) {
-        offsets[c * info.replay.per_chunk + k] = [c, o];
-        o = decodeFrame(buf, o).end;
+    // fetch three chunks at a time, earliest first; playback starts once a few are in
+    let next = 0;
+    async function worker() {
+      while (next < info.replay.chunks) {
+        const c = next++;
+        const buf = await (await fetch(url(`chunk-${String(c).padStart(3, '0')}.bin`))).arrayBuffer();
+        const dv = new DataView(buf);
+        const count = dv.getUint32(4, true);
+        let o = 8;
+        for (let k = 0; k < count; k++) {
+          offsets[c * info.replay.per_chunk + k] = [c, o];
+          o = decodeFrame(buf, o).end;
+        }
+        chunks[c] = buf;
       }
-      chunks[c] = buf;
-      sink.onProgress?.((c + 1) / info.replay.chunks);
     }
+    await Promise.all([worker(), worker(), worker()]);
   }
 
   load().catch((e) => sink.setConn(`replay failed: ${e.message}`, 'err'));
