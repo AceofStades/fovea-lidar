@@ -308,7 +308,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 renderer.domElement.addEventListener('pointerleave', () => { mouse.over = false; inspector.style.display = 'none'; hoverBox.visible = false; });
 
 function onInspect(m) {
-  if (!m.inside || !m.count || !mouse.over) { inspector.style.display = 'none'; hoverBox.visible = false; return; }
+  if (!m.inside || m.count === 0 || !mouse.over) { inspector.style.display = 'none'; hoverBox.visible = false; return; }
   hoverBox.visible = true;
   hoverBox.position.set(m.center[0], m.center[1], m.ground_z + 0.06);
   hoverBox.scale.set(m.cell, m.cell, 1);
@@ -323,7 +323,7 @@ function onInspect(m) {
     <div class="ir"><span>step to neighbours</span><b>${f(m.step)}</b></div>
     <div class="ir"><span>obstacle top</span><b>${f(m.obstacle_top)}</b></div>
     <div class="ir"><span>clearance</span><b>${f(m.clearance)}</b></div>
-    <div class="ir"><span>points (fused)</span><b>${m.count}${m.moving_points ? ` · ${m.moving_points} moving` : ''}</b></div>
+    ${m.count === null ? `<div class="ir"><span>moving</span><b>${m.moving_points ? 'yes' : 'no'}</b></div>` : `<div class="ir"><span>points (fused)</span><b>${m.count}${m.moving_points ? ` · ${m.moving_points} moving` : ''}</b></div>`}
     <div class="ir"><span>index</span><b>(${m.ix}, ${m.iy})</b></div>`;
   inspector.style.display = 'block';
   inspector.style.left = `${Math.min(mouse.x + 18, innerWidth - 250)}px`;
@@ -350,8 +350,24 @@ controls.target.set(...VIEWS.chase.target);
 
 // ------------------------------------------------------------------ websocket
 let ws = null;
-function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+let replay = null; // ?replay=<dir>: a recorded drive, no server (see replay.js)
+function send(obj) {
+  if (replay) replay.send(obj);
+  else if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+async function startReplay(dir) {
+  const { createReplay } = await import('./replay.js');
+  document.body.classList.add('replay');
+  // fixed in a recording: the neural net's labels, the fusion window, no raw points
+  document.querySelector('#source-mode [data-s=gt]').disabled = true;
+  $('acc').disabled = true;
+  $('lay-points').checked = false;
+  $('lay-points').disabled = true;
+  points.visible = false;
+  replay = createReplay(dir, { onInfo, onFrame, onInspect, setConn });
+}
 function connect() {
+  if (params.has('replay')) return startReplay(params.get('replay') || 'replay/');
   ws = new WebSocket(`ws://${location.host}/ws`);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => setConn('live', 'ok');

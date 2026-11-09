@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FOVEA · Adaptive 2.5D LiDAR Mapping</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='5' fill='none' stroke='%2338bdf8' stroke-width='3'/%3E%3Crect x='9' y='9' width='14' height='14' rx='3' fill='none' stroke='%23a78bfa' stroke-width='3'/%3E%3Crect x='14' y='14' width='4' height='4' fill='white'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="static/style.css">
 <script type="importmap">
-{ "imports": { "three": "/static/vendor/three.module.js", "three/addons/": "/static/vendor/" } }
+{ "imports": { "three": "./static/vendor/three.module.js", "three/addons/": "./static/vendor/" } }
 </script>
 </head>
 <body>
@@ -100,7 +100,7 @@
   <section>
     <h3>Memory vs uniform maps</h3>
     <div id="mem"></div>
-    <a class="dl" href="/snapshot.npz" download>Download this map (.npz, 11 B per cell)</a>
+    <a class="dl" href="snapshot.npz" download>Download this map (.npz, 11 B per cell)</a>
   </section>
   <section>
     <h3>Foveated resolution rings</h3>
@@ -180,6 +180,6 @@
   </select>
 </footer>
 
-<script type="module" src="/static/app.js"></script>
+<script type="module" src="static/app.js"></script>
 </body>
 </html>

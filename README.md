@@ -173,6 +173,10 @@ area having been observed, plus a robust track velocity for fast objects. Agains
 per-point moving labels: 64 % precision, 46 % recall at point level (labelled "moving" includes cars
 creeping at < 1 m/s).
 
+## Static replay (no GPU needed to watch)
+
+`scripts/record_replay.py` runs a stretch of the drive through the full pipeline and saves what the simulator would stream; `scripts/pack_replay.py` packs it (cell positions exact, heights to 1 cm, ~115 kB per frame after brotli). Open `index.html?replay=<dir>/` from any static host and the viewer plays it back with the same controls; the raw point cloud and ground-truth labels are left out.
+
 ## Running it
 
 Requirements: Linux, an NVIDIA GPU, [uv](https://docs.astral.sh/uv/). Python 3.12, PyTorch 2.11
