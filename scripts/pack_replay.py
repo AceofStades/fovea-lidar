@@ -81,6 +81,7 @@ def main(src: Path, out: Path):
     lat = []
     first = json.loads((src / f"{frames[0]}.json").read_text())["index"]
     total = 0
+    chunk_bytes = []
     for c in range(0, len(frames), PER_CHUNK):
         blob = bytearray(b"FOVC" + struct.pack("<I", len(frames[c:c + PER_CHUNK])))
         for name in frames[c:c + PER_CHUNK]:
@@ -99,8 +100,10 @@ def main(src: Path, out: Path):
         path = out / f"chunk-{c // PER_CHUNK:03d}.bin"
         path.write_bytes(blob)
         total += len(blob)
+        chunk_bytes.append(len(blob))
     info.update(frames=len(frames), replay={"first": first, "count": len(frames), "per_chunk": PER_CHUNK,
-                                             "chunks": (len(frames) + PER_CHUNK - 1) // PER_CHUNK, "fps": 10})
+                                             "chunks": (len(frames) + PER_CHUNK - 1) // PER_CHUNK, "fps": 10,
+                                             "bytes": chunk_bytes})
     info["source"] = "model"
     (out / "info.json").write_text(json.dumps(info, separators=(",", ":")))
     print(f"{len(frames)} frames -> {(len(frames) + PER_CHUNK - 1) // PER_CHUNK} chunks, {total / 1e6:.1f} MB before brotli")

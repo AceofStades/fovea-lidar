@@ -189,3 +189,30 @@ a.dl:hover { background: rgba(56, 189, 248, 0.1); }
 
 /* static replay (?replay=…): no server behind the page */
 body.replay .dl { display: none; }
+
+/* replay loading screen: the four resolution rings fill in from the 5 cm centre outward */
+#replay-loader { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: radial-gradient(ellipse at 50% 45%, rgba(20, 30, 46, 0.92), rgba(7, 10, 15, 0.97) 70%);
+  transition: opacity 0.6s ease, visibility 0.6s; }
+#replay-loader.done { opacity: 0; visibility: hidden; pointer-events: none; }
+.rl-card { width: min(420px, calc(100vw - 40px)); display: grid; gap: 12px; justify-items: center; text-align: center; }
+.rl-card h2 { margin: 6px 0 0; font-size: 18px; font-weight: 600; letter-spacing: 0.01em; }
+.rl-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.rl-rings { position: relative; width: 120px; height: 120px; }
+.rl-rings i { position: absolute; border: 1.5px solid var(--faint); border-radius: 6px; opacity: 0.35;
+  transition: border-color 0.4s, opacity 0.4s, box-shadow 0.4s; animation: rl-breathe 2.4s ease-in-out infinite; }
+.rl-rings i:nth-child(1) { inset: 0; animation-delay: 0.45s; }
+.rl-rings i:nth-child(2) { inset: 18px; animation-delay: 0.3s; }
+.rl-rings i:nth-child(3) { inset: 34px; animation-delay: 0.15s; }
+.rl-rings i:nth-child(4) { inset: 48px; }
+.rl-rings i.on { opacity: 1; }
+.rl-rings i.on:nth-child(4) { border-color: rgb(167, 139, 250); box-shadow: 0 0 14px rgba(167, 139, 250, 0.45); }
+.rl-rings i.on:nth-child(3) { border-color: rgb(56, 189, 248); box-shadow: 0 0 14px rgba(56, 189, 248, 0.35); }
+.rl-rings i.on:nth-child(2) { border-color: rgb(45, 212, 191); box-shadow: 0 0 14px rgba(45, 212, 191, 0.3); }
+.rl-rings i.on:nth-child(1) { border-color: rgb(250, 204, 21); box-shadow: 0 0 14px rgba(250, 204, 21, 0.25); }
+@keyframes rl-breathe { 50% { transform: scale(0.94); } }
+@media (prefers-reduced-motion: reduce) { .rl-rings i { animation: none; } }
+.rl-bar { width: 100%; height: 6px; margin-top: 8px; border-radius: 3px; background: rgba(130, 160, 210, 0.12); overflow: hidden; }
+.rl-bar div { width: 0; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width 0.2s linear; }
+.rl-meta { width: 100%; display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--muted); }
+.rl-pct { color: var(--text); }

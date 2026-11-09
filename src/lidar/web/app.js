@@ -364,7 +364,30 @@ async function startReplay(dir) {
   $('lay-points').checked = false;
   $('lay-points').disabled = true;
   points.visible = false;
-  replay = createReplay(dir, { onInfo, onFrame, onInspect, setConn });
+  const loader = document.createElement('div');
+  loader.id = 'replay-loader';
+  loader.innerHTML = `
+    <div class="rl-card">
+      <div class="rl-rings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h2>Loading a recorded drive</h2>
+      <p>SemanticKITTI sequence 08, 15 s, run through the full pipeline on an RTX 5060 Ti.
+        Your browser only has to draw it.</p>
+      <div class="rl-bar"><div></div></div>
+      <div class="rl-meta"><span class="rl-pct">0%</span><span class="rl-eta">connecting…</span></div>
+    </div>`;
+  document.body.appendChild(loader);
+  const rings = loader.querySelectorAll('.rl-rings i');
+  const onLoad = (st) => {
+    loader.querySelector('.rl-bar div').style.width = `${(st.fraction * 100).toFixed(1)}%`;
+    loader.querySelector('.rl-pct').textContent = `${Math.round(st.fraction * 100)}%`;
+    // rings light up from the fine 5 cm centre outwards, like the map itself
+    rings.forEach((r, k) => r.classList.toggle('on', st.startFraction >= (3 - k) * 0.25 + 0.02));
+    loader.querySelector('.rl-eta').textContent = st.startsIn > 0.5
+      ? `playing in ~${Math.ceil(st.startsIn)} s`
+      : `${Math.min(st.secondsReady, st.secondsTotal).toFixed(0)} of ${st.secondsTotal.toFixed(0)} s ready`;
+    if (st.started) loader.classList.add('done');
+  };
+  replay = createReplay(dir, { onInfo, onFrame, onInspect, setConn, onLoad });
   // a recording reads better a little slower than the sensor's 10 Hz
   $('speed').value = '5';
   send({ cmd: 'speed', fps: 5 });

@@ -77,6 +77,9 @@ export function createReplay(base, sink) {
   }
 
   const loadedCount = () => chunks.filter(Boolean).length;
+  const bufferedFrom0 = () => { let n = 0; while (chunks[n]) n++; return n; };
+  let started = false;
+  let report = () => {};
   function bufferedAhead() {
     // whole chunks downloaded from the playhead on (wrapping once everything is in)
     const total = info.replay.chunks, c0 = Math.floor(index / info.replay.per_chunk);
@@ -105,7 +108,10 @@ export function createReplay(base, sink) {
     if (playing && info) {
       const all = loadedCount() === info.replay.chunks;
       const ahead = bufferedAhead();
-      if (stalled && (all || ahead >= Math.min(AHEAD, info.replay.chunks))) stalled = false;
+      if (stalled && (all || ahead >= Math.min(AHEAD, info.replay.chunks))) {
+        stalled = false;
+        if (!started) { started = true; report(true); }
+      }
       else if (!stalled && ahead === 0) stalled = true;
       if (stalled) {
         if (!last && offsets[index]) show();   // first frame right away, still while buffering
@@ -168,12 +174,51 @@ export function createReplay(base, sink) {
     info.frames = info.replay.count;
     sink.onInfo(info);
     tick();
-    // fetch three chunks at a time, earliest first; playback starts once a few are in
+    // fetch three chunks at a time, earliest first; playback starts once a few are in.
+    // Bodies are streamed so the loading screen can show real progress.
+    const sizes = info.replay.bytes || [];
+    const total = sizes.reduce((a, b) => a + b, 0);
+    const received = new Array(info.replay.chunks).fill(0);
+    const t0 = performance.now();
+    let lastReport = 0;
+    report = (force) => {
+      const now = performance.now();
+      if (!force && now - lastReport < 80) return;
+      lastReport = now;
+      const got = received.reduce((a, b) => a + b, 0);
+      const rate = got / Math.max(0.2, (now - t0) / 1000);   // bytes/s, decoded
+      const need = sizes.slice(0, Math.min(AHEAD, sizes.length)).reduce((a, b) => a + b, 0);
+      sink.onLoad?.({
+        fraction: total ? got / total : loadedCount() / info.replay.chunks,
+        chunksDone: loadedCount(), chunks: info.replay.chunks,
+        secondsReady: (bufferedFrom0() * info.replay.per_chunk) / info.replay.fps,
+        secondsTotal: info.replay.count / info.replay.fps,
+        startsIn: started ? 0 : Math.max(0, (need - got) / Math.max(rate, 1)),
+        startFraction: started ? 1 : Math.min(1, got / Math.max(need, 1)),
+        started,
+      });
+    };
     let next = 0;
     async function worker() {
       while (next < info.replay.chunks) {
         const c = next++;
-        const buf = await (await fetch(url(`chunk-${String(c).padStart(3, '0')}.bin`))).arrayBuffer();
+        const res = await fetch(url(`chunk-${String(c).padStart(3, '0')}.bin`));
+        let buf;
+        if (sizes[c] && res.body) {
+          const bytes = new Uint8Array(sizes[c]);
+          const reader = res.body.getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            bytes.set(value, received[c]);
+            received[c] += value.length;
+            report();
+          }
+          buf = bytes.buffer;
+        } else {
+          buf = await res.arrayBuffer();
+          received[c] = buf.byteLength;
+        }
         const dv = new DataView(buf);
         const count = dv.getUint32(4, true);
         let o = 8;
@@ -182,6 +227,7 @@ export function createReplay(base, sink) {
           o = decodeFrame(buf, o).end;
         }
         chunks[c] = buf;
+        report(true);
       }
     }
     await Promise.all([worker(), worker(), worker()]);
